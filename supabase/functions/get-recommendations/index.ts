@@ -43,7 +43,7 @@ Focus on:
 - Providing diverse recommendations across different sub-genres`;
 
     const userPrompt = `User Preferences:
-- Mood: ${preferences.mood}
+- How their day is going: ${preferences.mood}
 - Genres: ${preferences.genres.join(', ')}
 - Watch Time: ${preferences.watchTime}
 - Watch Style: ${preferences.watchStyle}
@@ -52,7 +52,7 @@ Focus on:
 Recently Watched Shows:
 ${watchedShows.length > 0 ? watchedShows.join(', ') : 'None provided'}
 
-Please provide 6 personalized recommendations.`;
+Please provide 6 personalized recommendations that match their current state of mind based on how their day is going.`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',

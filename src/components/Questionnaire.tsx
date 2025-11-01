@@ -60,9 +60,18 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
       <CardContent className="space-y-6">
         {step === 1 && (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">What's your mood right now?</h3>
+            <h3 className="text-lg font-semibold">How is your day going so far?</h3>
             <RadioGroup value={mood} onValueChange={setMood}>
-              {["Relaxed", "Excited", "Thoughtful", "Looking for laughs", "Want something intense"].map(option => (
+              {[
+                "Great, everything is going well!",
+                "Pretty good, can't complain.",
+                "It's okay, nothing special.",
+                "A bit stressful, to be honest.",
+                "Not so great, having a rough day.",
+                "Could be better, thanks for asking.",
+                "I'm feeling tired or overwhelmed.",
+                "Excited and productive today"
+              ].map(option => (
                 <div key={option} className="flex items-center space-x-2">
                   <RadioGroupItem value={option} id={`mood-${option}`} />
                   <Label htmlFor={`mood-${option}`} className="cursor-pointer">{option}</Label>
