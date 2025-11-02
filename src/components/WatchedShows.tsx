@@ -3,25 +3,32 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Loader2 } from "lucide-react";
 
 interface WatchedShowsProps {
   shows: string[];
-  onShowsChange: (shows: string[]) => void;
+  loading?: boolean;
+  onAddShow: (show: string) => Promise<boolean>;
+  onRemoveShow: (show: string) => Promise<boolean>;
 }
 
-const WatchedShows = ({ shows, onShowsChange }: WatchedShowsProps) => {
+const WatchedShows = ({ shows, loading, onAddShow, onRemoveShow }: WatchedShowsProps) => {
   const [newShow, setNewShow] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
 
-  const handleAddShow = () => {
-    if (newShow.trim() && !shows.includes(newShow.trim())) {
-      onShowsChange([...shows, newShow.trim()]);
+  const handleAddShow = async () => {
+    if (!newShow.trim()) return;
+    
+    setIsAdding(true);
+    const success = await onAddShow(newShow.trim());
+    if (success) {
       setNewShow("");
     }
+    setIsAdding(false);
   };
 
-  const handleRemoveShow = (show: string) => {
-    onShowsChange(shows.filter(s => s !== show));
+  const handleRemoveShow = async (show: string) => {
+    await onRemoveShow(show);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -43,17 +50,23 @@ const WatchedShows = ({ shows, onShowsChange }: WatchedShowsProps) => {
             onChange={(e) => setNewShow(e.target.value)}
             onKeyPress={handleKeyPress}
             className="bg-background/50"
+            disabled={isAdding}
           />
           <Button 
             onClick={handleAddShow}
             variant="secondary"
             size="icon"
+            disabled={isAdding}
           >
-            <Plus className="h-4 w-4" />
+            {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
           </Button>
         </div>
         
-        {shows.length > 0 ? (
+        {loading ? (
+          <div className="flex justify-center py-4">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : shows.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {shows.map((show) => (
               <Badge 

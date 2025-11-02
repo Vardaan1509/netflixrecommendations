@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Session } from "@supabase/supabase-js";
 import Questionnaire from "@/components/Questionnaire";
 import WatchedShows from "@/components/WatchedShows";
 import RegionSelector from "@/components/RegionSelector";
 import RecommendationCard from "@/components/RecommendationCard";
-import { Sparkles, RefreshCw } from "lucide-react";
+import { useWatchedShows } from "@/hooks/useWatchedShows";
+import { Sparkles, RefreshCw, LogOut } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 
 interface Preferences {
@@ -31,11 +34,40 @@ interface Recommendation {
 const Index = () => {
   const [step, setStep] = useState<"start" | "input" | "results">("start");
   const [preferences, setPreferences] = useState<Preferences | null>(null);
-  const [watchedShows, setWatchedShows] = useState<string[]>([]);
   const [region, setRegion] = useState("United States");
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
+  
+  const { shows, loading: showsLoading, addShow, removeShow } = useWatchedShows(session?.user?.id);
+
+  useEffect(() => {
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+      }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+    toast({
+      title: "Signed out",
+      description: "You've been signed out successfully.",
+    });
+    navigate("/");
+  };
 
   const handleGetRecommendations = async () => {
     if (!preferences) return;
@@ -45,7 +77,7 @@ const Index = () => {
       const { data, error } = await supabase.functions.invoke('get-recommendations', {
         body: {
           preferences,
-          watchedShows,
+          watchedShows: shows,
           region
         }
       });
@@ -76,6 +108,30 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Header with Auth */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border/50">
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <h1 className="text-xl font-bold">Netflix Recommender</h1>
+          <div className="flex items-center gap-4">
+            {session ? (
+              <>
+                <span className="text-sm text-muted-foreground hidden sm:inline">
+                  {session.user.email}
+                </span>
+                <Button variant="outline" size="sm" onClick={handleSignOut}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => navigate("/auth")}>
+                Sign In
+              </Button>
+            )}
+          </div>
+        </div>
+      </header>
+
       {/* Hero Section */}
       {step === "start" && (
         <div 
@@ -111,7 +167,7 @@ const Index = () => {
 
       {/* Input Section */}
       {step === "input" && (
-        <div className="container mx-auto px-4 py-12 max-w-4xl space-y-8">
+        <div className="container mx-auto px-4 py-12 max-w-4xl space-y-8 pt-24">
           <div className="text-center space-y-2 mb-8">
             <h2 className="text-3xl md:text-4xl font-bold">Let's Find Your Perfect Watch</h2>
             <p className="text-muted-foreground">Answer a few questions to get personalized recommendations</p>
@@ -124,7 +180,12 @@ const Index = () => {
               <Questionnaire onComplete={handleQuestionnaireComplete} />
             ) : (
               <>
-                <WatchedShows shows={watchedShows} onShowsChange={setWatchedShows} />
+                <WatchedShows 
+                  shows={shows} 
+                  loading={showsLoading}
+                  onAddShow={addShow}
+                  onRemoveShow={removeShow}
+                />
                 
                 <div className="flex justify-center pt-4">
                   <Button 
@@ -155,7 +216,7 @@ const Index = () => {
 
       {/* Results Section */}
       {step === "results" && (
-        <div className="container mx-auto px-4 py-12 max-w-6xl space-y-8">
+        <div className="container mx-auto px-4 py-12 max-w-6xl space-y-8 pt-24">
           <div className="text-center space-y-4">
             <h2 className="text-3xl md:text-4xl font-bold">Your Personalized Recommendations</h2>
             <p className="text-muted-foreground">Based on your preferences and viewing history</p>
