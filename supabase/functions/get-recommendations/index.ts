@@ -20,7 +20,7 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const systemPrompt = `You are a Netflix recommendation expert. Based on user preferences, their watched shows, and their Netflix region, provide personalized show/movie recommendations.
+    const systemPrompt = `You are a Netflix recommendation expert with deep knowledge of regional content availability. Based on user preferences, their watched shows, and their Netflix region, provide personalized show/movie recommendations.
 
 Return EXACTLY 6 recommendations in JSON format with this structure:
 {
@@ -36,11 +36,18 @@ Return EXACTLY 6 recommendations in JSON format with this structure:
   ]
 }
 
-Focus on:
-- Content actually available in their Netflix region
+CRITICAL REQUIREMENTS:
+- ONLY recommend content that is CURRENTLY AVAILABLE in their specific Netflix region (${region})
+- Verify regional availability before including any recommendation
+- If a show/movie is not available in their region, DO NOT recommend it
+- For Canada specifically, be aware that many US-exclusive titles are not available
+- Double-check that each recommendation is actually streamable in ${region}
+
+Additional Focus:
 - Matching their mood and genre preferences
 - Considering their watch history to avoid repeats and find similar content
-- Providing diverse recommendations across different sub-genres`;
+- Providing diverse recommendations across different sub-genres
+- Prioritizing content that is definitively available in their region`;
 
     const userPrompt = `User Preferences:
 - How their day is going: ${preferences.mood}
@@ -64,7 +71,7 @@ Please provide 6 personalized recommendations that match their current state of 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }

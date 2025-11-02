@@ -44,18 +44,21 @@ BRANCHING LOGIC EXAMPLES:
 - If multiple inconsistent answers → set needsClarification=true
 
 READINESS CRITERIA (when to set ready=true):
-You need AT LEAST 4 solid answers covering:
-✓ Emotional state/mood (how their day is going)
-✓ Time constraint (how long they can watch)
-✓ Genre preferences (at least 2-3 genres selected)
-✓ Watch context (alone/with others OR watch style)
+You need AT LEAST 6-8 solid answers covering:
+✓ REQUIRED (must have all):
+  - Emotional state/mood (how their day is going)
+  - Time constraint (how long they can watch)
+  - Genre preferences (at least 2-3 genres selected)
+  - Watch context (alone/with others)
+  - Watch style (background/focused/etc)
+  - Language/subtitle preferences
 
-OPTIONAL but helpful for better recommendations:
-- Language/subtitle preferences
-- Interest in underrated content
-- Specific watch style preferences
+✓ HIGHLY RECOMMENDED (get at least 1-2):
+  - Interest in underrated content
+  - Additional genre refinement questions
+  - Specific mood-based follow-ups
 
-DO NOT ask more than 6-7 questions total. If you have 5-6 good answers, set ready=true.
+Ask between 8-12 questions total to gather comprehensive information. Only set ready=true when you have 6-8 meaningful answers that provide a complete picture of their preferences.
 
 CONFUSION DETECTION:
 Set needsClarification=true if:
@@ -164,7 +167,7 @@ What should I do next?`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
