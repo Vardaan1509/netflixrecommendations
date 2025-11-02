@@ -4,208 +4,175 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronRight, ChevronLeft } from "lucide-react";
+import { ChevronLeft, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface QuestionnaireProps {
-  onComplete: (preferences: {
-    mood: string;
-    genres: string[];
-    watchTime: string;
-    watchStyle: string;
-    language: string;
-    company: string;
-    underrated: string;
-  }) => void;
+  onComplete: (preferences: any) => void;
+}
+
+interface Question {
+  id: string;
+  question: string;
+  type: "radio" | "checkbox";
+  options: string[];
 }
 
 const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
-  const [step, setStep] = useState(1);
-  const [mood, setMood] = useState("");
-  const [genres, setGenres] = useState<string[]>([]);
-  const [watchTime, setWatchTime] = useState("");
-  const [watchStyle, setWatchStyle] = useState("");
-  const [language, setLanguage] = useState("");
-  const [company, setCompany] = useState("");
-  const [underrated, setUnderrated] = useState("");
+  const { toast } = useToast();
+  const [conversationHistory, setConversationHistory] = useState<Array<{ question: string; answer: any }>>([]);
+  const [currentQuestion, setCurrentQuestion] = useState<Question>({
+    id: "mood",
+    question: "How is your day going so far?",
+    type: "radio",
+    options: [
+      "Great, everything is going well!",
+      "Pretty good, can't complain.",
+      "It's okay, nothing special.",
+      "A bit stressful, to be honest.",
+      "Not so great, having a rough day.",
+      "Could be better, thanks for asking.",
+      "I'm feeling tired or overwhelmed.",
+      "Excited and productive today"
+    ]
+  });
+  const [currentAnswer, setCurrentAnswer] = useState<string | string[]>("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const genreOptions = [
-    "Action", "Comedy", "Drama", "Thriller", "Sci-Fi",
-    "Romance", "Horror", "Documentary", "Fantasy", "Crime"
-  ];
-
-  const handleGenreToggle = (genre: string) => {
-    setGenres(prev => 
-      prev.includes(genre) 
-        ? prev.filter(g => g !== genre)
-        : [...prev, genre]
-    );
+  const handleAnswerChange = (value: string | string[]) => {
+    setCurrentAnswer(value);
   };
 
-  const handleComplete = () => {
-    if (mood && genres.length > 0 && watchTime && watchStyle && language && company && underrated) {
-      onComplete({ mood, genres, watchTime, watchStyle, language, company, underrated });
+  const handleNext = async () => {
+    if (!currentAnswer || (Array.isArray(currentAnswer) && currentAnswer.length === 0)) {
+      return;
+    }
+
+    setIsLoading(true);
+    const newHistory = [...conversationHistory, { question: currentQuestion.question, answer: currentAnswer }];
+    setConversationHistory(newHistory);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('get-next-question', {
+        body: { conversationHistory: newHistory }
+      });
+
+      if (error) throw error;
+
+      if (data.ready) {
+        // AI is confident, generate recommendations
+        onComplete(data.preferences);
+      } else if (data.needsClarification) {
+        // Show clarification message
+        toast({
+          title: "Let's try again",
+          description: data.message,
+        });
+        setCurrentQuestion(data.nextQuestion);
+        setCurrentAnswer(data.nextQuestion.type === "checkbox" ? [] : "");
+      } else {
+        // Continue with next question
+        setCurrentQuestion(data.nextQuestion);
+        setCurrentAnswer(data.nextQuestion.type === "checkbox" ? [] : "");
+      }
+    } catch (error) {
+      console.error('Error getting next question:', error);
+      toast({
+        title: "Error",
+        description: "Failed to process your answer. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const handleBack = () => {
+    if (conversationHistory.length === 0) return;
+    
+    const newHistory = [...conversationHistory];
+    const lastEntry = newHistory.pop();
+    setConversationHistory(newHistory);
+    setCurrentAnswer(lastEntry?.answer || "");
+  };
+
   const canProceed = () => {
-    if (step === 1) return mood !== "";
-    if (step === 2) return genres.length > 0;
-    if (step === 3) return watchTime !== "";
-    if (step === 4) return watchStyle !== "";
-    if (step === 5) return language !== "";
-    if (step === 6) return company !== "";
-    if (step === 7) return underrated !== "";
-    return false;
+    if (Array.isArray(currentAnswer)) {
+      return currentAnswer.length > 0;
+    }
+    return currentAnswer !== "";
   };
 
   return (
     <Card className="bg-gradient-to-br from-card to-card/50 backdrop-blur border-border/50">
       <CardHeader>
-        <CardTitle className="text-2xl flex items-center justify-between">
-          <span>Question {step} of 7</span>
-          <span className="text-sm text-muted-foreground">{Math.round((step / 7) * 100)}%</span>
-        </CardTitle>
+        <CardTitle className="text-2xl">Let's find your perfect watch</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {step === 1 && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">How is your day going so far?</h3>
-            <RadioGroup value={mood} onValueChange={setMood}>
-              {[
-                "Great, everything is going well!",
-                "Pretty good, can't complain.",
-                "It's okay, nothing special.",
-                "A bit stressful, to be honest.",
-                "Not so great, having a rough day.",
-                "Could be better, thanks for asking.",
-                "I'm feeling tired or overwhelmed.",
-                "Excited and productive today"
-              ].map(option => (
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold">{currentQuestion.question}</h3>
+          
+          {currentQuestion.type === "radio" ? (
+            <RadioGroup 
+              value={typeof currentAnswer === "string" ? currentAnswer : ""} 
+              onValueChange={handleAnswerChange}
+            >
+              {currentQuestion.options.map(option => (
                 <div key={option} className="flex items-center space-x-2">
-                  <RadioGroupItem value={option} id={`mood-${option}`} />
-                  <Label htmlFor={`mood-${option}`} className="cursor-pointer">{option}</Label>
+                  <RadioGroupItem value={option} id={`option-${option}`} />
+                  <Label htmlFor={`option-${option}`} className="cursor-pointer">{option}</Label>
                 </div>
               ))}
             </RadioGroup>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Which genres interest you? (Select multiple)</h3>
+          ) : (
             <div className="grid grid-cols-2 gap-3">
-              {genreOptions.map(genre => (
-                <div key={genre} className="flex items-center space-x-2">
+              {currentQuestion.options.map(option => (
+                <div key={option} className="flex items-center space-x-2">
                   <Checkbox 
-                    id={`genre-${genre}`}
-                    checked={genres.includes(genre)}
-                    onCheckedChange={() => handleGenreToggle(genre)}
+                    id={`option-${option}`}
+                    checked={Array.isArray(currentAnswer) && currentAnswer.includes(option)}
+                    onCheckedChange={(checked) => {
+                      if (Array.isArray(currentAnswer)) {
+                        handleAnswerChange(
+                          checked 
+                            ? [...currentAnswer, option]
+                            : currentAnswer.filter(item => item !== option)
+                        );
+                      }
+                    }}
                   />
-                  <Label htmlFor={`genre-${genre}`} className="cursor-pointer">{genre}</Label>
+                  <Label htmlFor={`option-${option}`} className="cursor-pointer">{option}</Label>
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">How much time do you have?</h3>
-            <RadioGroup value={watchTime} onValueChange={setWatchTime}>
-              {["Quick watch (< 30 min)", "Standard episode (30-60 min)", "Movie length (90+ min)", "Binge session (multiple hours)"].map(option => (
-                <div key={option} className="flex items-center space-x-2">
-                  <RadioGroupItem value={option} id={`time-${option}`} />
-                  <Label htmlFor={`time-${option}`} className="cursor-pointer">{option}</Label>
-                </div>
-              ))}
-            </RadioGroup>
-          </div>
-        )}
-
-        {step === 4 && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">What's your watching style?</h3>
-            <RadioGroup value={watchStyle} onValueChange={setWatchStyle}>
-              {["Background viewing", "Focused watching", "Something to discuss", "Solo entertainment", "Nostalgic re-watching"].map(option => (
-                <div key={option} className="flex items-center space-x-2">
-                  <RadioGroupItem value={option} id={`style-${option}`} />
-                  <Label htmlFor={`style-${option}`} className="cursor-pointer">{option}</Label>
-                </div>
-              ))}
-            </RadioGroup>
-          </div>
-        )}
-
-        {step === 5 && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Preferred Language or Subtitles?</h3>
-            <RadioGroup value={language} onValueChange={setLanguage}>
-              {["English", "Other languages", "Dubbing preferred", "Subtitles preferred", "No preference"].map(option => (
-                <div key={option} className="flex items-center space-x-2">
-                  <RadioGroupItem value={option} id={`language-${option}`} />
-                  <Label htmlFor={`language-${option}`} className="cursor-pointer">{option}</Label>
-                </div>
-              ))}
-            </RadioGroup>
-          </div>
-        )}
-
-        {step === 6 && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Are You Watching Alone or With Company?</h3>
-            <RadioGroup value={company} onValueChange={setCompany}>
-              {["Alone", "With family", "With friends", "Other"].map(option => (
-                <div key={option} className="flex items-center space-x-2">
-                  <RadioGroupItem value={option} id={`company-${option}`} />
-                  <Label htmlFor={`company-${option}`} className="cursor-pointer">{option}</Label>
-                </div>
-              ))}
-            </RadioGroup>
-          </div>
-        )}
-
-        {step === 7 && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Are you interested in watching something new that's a bit underrated?</h3>
-            <RadioGroup value={underrated} onValueChange={setUnderrated}>
-              {["Yes", "No"].map(option => (
-                <div key={option} className="flex items-center space-x-2">
-                  <RadioGroupItem value={option} id={`underrated-${option}`} />
-                  <Label htmlFor={`underrated-${option}`} className="cursor-pointer">{option}</Label>
-                </div>
-              ))}
-            </RadioGroup>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="flex justify-between pt-4">
           <Button
             variant="ghost"
-            onClick={() => setStep(s => s - 1)}
-            disabled={step === 1}
+            onClick={handleBack}
+            disabled={conversationHistory.length === 0 || isLoading}
           >
             <ChevronLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
           
-          {step < 7 ? (
-            <Button
-              variant="gradient"
-              onClick={() => setStep(s => s + 1)}
-              disabled={!canProceed()}
-            >
-              Next
-              <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
-          ) : (
-            <Button
-              variant="gradient"
-              onClick={handleComplete}
-              disabled={!canProceed()}
-            >
-              Get Recommendations
-            </Button>
-          )}
+          <Button
+            variant="gradient"
+            onClick={handleNext}
+            disabled={!canProceed() || isLoading}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              "Continue"
+            )}
+          </Button>
         </div>
       </CardContent>
     </Card>
