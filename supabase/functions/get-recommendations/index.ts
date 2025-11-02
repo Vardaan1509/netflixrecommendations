@@ -20,7 +20,7 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const systemPrompt = `You are a Netflix recommendation expert with deep knowledge of regional content availability. Based on user preferences, their watched shows, and their Netflix region, provide personalized show/movie recommendations.
+    const systemPrompt = `You are a Netflix recommendation expert with VERIFIED knowledge of regional content catalogs. You MUST cross-reference each recommendation against the specific region's Netflix library before including it.
 
 Return EXACTLY 6 recommendations in JSON format with this structure:
 {
@@ -36,28 +36,41 @@ Return EXACTLY 6 recommendations in JSON format with this structure:
   ]
 }
 
-CRITICAL REQUIREMENTS:
-- ONLY recommend content that is CURRENTLY AVAILABLE in their specific Netflix region (${region})
-- Verify regional availability before including any recommendation
-- If a show/movie is not available in their region, DO NOT recommend it
-- For Canada specifically, be aware that many US-exclusive titles are not available
-- Double-check that each recommendation is actually streamable in ${region}
+⚠️ ABSOLUTE CRITICAL REQUIREMENTS - REGIONAL AVAILABILITY:
+1. You MUST ONLY recommend content that is 100% CONFIRMED available in ${region}
+2. BEFORE including ANY title, verify it is currently streaming in ${region}
+3. If you have ANY doubt about regional availability, DO NOT include that title
+4. For Canada specifically:
+   - Many US Netflix exclusives are NOT available
+   - Many documentaries and older films have different availability
+   - Verify each title specifically for Canadian Netflix
+5. Double and triple-check EVERY recommendation is streamable in ${region}
+6. When in doubt, choose more mainstream/popular titles that are definitely available
+
+CONTENT TYPE REQUIREMENTS:
+- User preference: ${preferences.contentType || 'both'}
+- STRICTLY follow their content type preference
+- If "Movies only" → recommend ONLY movies
+- If "Series only" → recommend ONLY series  
+- If "Both" → provide a mix
 
 Additional Focus:
-- Matching their mood and genre preferences
-- Considering their watch history to avoid repeats and find similar content
-- Providing diverse recommendations across different sub-genres
-- Prioritizing content that is definitively available in their region`;
+- Match their specific mood: ${preferences.mood}
+- Align with their genre preferences
+- Consider watch history to avoid repeats and find similar content
+- Provide diverse recommendations across sub-genres
+- Prioritize HIGH-CONFIDENCE regional availability over perfect preference matching`;
 
     const userPrompt = `User Preferences:
 - How their day is going: ${preferences.mood}
+- Content Type: ${preferences.contentType || 'both movies and series'}
 - Genres: ${preferences.genres.join(', ')}
 - Watch Time: ${preferences.watchTime}
 - Watch Style: ${preferences.watchStyle}
 - Language/Subtitles: ${preferences.language}
 - Watching: ${preferences.company}
 - Interested in underrated content: ${preferences.underrated}
-- Netflix Region: ${region}
+- Netflix Region: ${region} ⚠️ CRITICAL: Verify ALL recommendations are available in this specific region
 
 Recently Watched Shows:
 ${watchedShows.length > 0 ? watchedShows.join(', ') : 'None provided'}

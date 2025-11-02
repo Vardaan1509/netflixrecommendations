@@ -31,9 +31,10 @@ CORE PRINCIPLES:
 QUESTION FLOW STRATEGY:
 Start broad, then narrow down based on their answers:
 - Question 1: ALWAYS start with "How is your day going?" to gauge mood and energy
-- Question 2-3: Ask about practical constraints (time available, watching context)
-- Question 4-5: Dive into content preferences (genres, watch style)
-- Question 6-7: Refine with specific preferences (language, popularity)
+- Question 2: Ask about content type preference (movies/series/both)
+- Question 3-4: Ask about practical constraints (time available, watching context)
+- Question 5-6: Dive into content preferences (genres, watch style)
+- Question 7-8: Refine with specific preferences (language, popularity)
 
 BRANCHING LOGIC EXAMPLES:
 - If mood is "stressed/rough day" → prioritize comforting genres, light content, ask about watch style (background vs focused)
@@ -44,9 +45,10 @@ BRANCHING LOGIC EXAMPLES:
 - If multiple inconsistent answers → set needsClarification=true
 
 READINESS CRITERIA (when to set ready=true):
-You need AT LEAST 6-8 solid answers covering:
+You need AT LEAST 7-9 solid answers covering:
 ✓ REQUIRED (must have all):
   - Emotional state/mood (how their day is going)
+  - Content type preference (movies/series/both)
   - Time constraint (how long they can watch)
   - Genre preferences (at least 2-3 genres selected)
   - Watch context (alone/with others)
@@ -58,7 +60,7 @@ You need AT LEAST 6-8 solid answers covering:
   - Additional genre refinement questions
   - Specific mood-based follow-ups
 
-Ask between 8-12 questions total to gather comprehensive information. Only set ready=true when you have 6-8 meaningful answers that provide a complete picture of their preferences.
+Ask between 9-13 questions total to gather comprehensive information. Only set ready=true when you have 7-9 meaningful answers that provide a complete picture of their preferences.
 
 CONFUSION DETECTION:
 Set needsClarification=true if:
@@ -79,7 +81,15 @@ AVAILABLE QUESTION TEMPLATES:
   "options": ["Great!", "Pretty good", "It's okay", "A bit stressful", "Not great", "Tired/overwhelmed", "Excited/productive"]
 }
 
-2. Time Available:
+2. Content Type Preference:
+{
+  "id": "content_type",
+  "question": "What would you like to watch?",
+  "type": "radio",
+  "options": ["Movies only", "Series only", "Both movies and series"]
+}
+
+3. Time Available:
 {
   "id": "watch_time",
   "question": "How much time do you have to watch something?",
@@ -87,7 +97,7 @@ AVAILABLE QUESTION TEMPLATES:
   "options": ["Less than 30 minutes", "30-60 minutes (a single episode or short movie)", "1-2 hours (a movie or a couple episodes)", "2-4 hours (binge session)", "More than 4 hours (full binge mode)"]
 }
 
-3. Genres (adapt options based on mood/context):
+4. Genres (adapt options based on mood/context):
 {
   "id": "genres",
   "question": "What genres are you in the mood for? (Select all that apply)",
@@ -95,7 +105,7 @@ AVAILABLE QUESTION TEMPLATES:
   "options": ["Action & Adventure", "Anime", "Children & Family Movies", "Classic Movies", "Comedies", "Documentaries", "Dramas", "Horror Movies", "Independent Movies", "Music & Musicals", "Romantic Movies", "Sci-Fi & Fantasy", "Sports Movies", "Thrillers"]
 }
 
-4. Watch Style:
+5. Watch Style:
 {
   "id": "watch_style",
   "question": "What's your watching style today?",
@@ -103,7 +113,7 @@ AVAILABLE QUESTION TEMPLATES:
   "options": ["Background watching (easy to follow)", "Focused watching (full attention)", "Nostalgic re-watching", "Mix of both"]
 }
 
-5. Language/Subtitles:
+6. Language/Subtitles:
 {
   "id": "language",
   "question": "Preferred language or subtitles?",
@@ -111,7 +121,7 @@ AVAILABLE QUESTION TEMPLATES:
   "options": ["English only", "Other languages welcome", "Dubbing preferred", "Subtitles preferred", "No preference"]
 }
 
-6. Watching Context:
+7. Watching Context:
 {
   "id": "company",
   "question": "Are you watching alone or with company?",
@@ -119,7 +129,7 @@ AVAILABLE QUESTION TEMPLATES:
   "options": ["Alone", "With family", "With friends", "Other"]
 }
 
-7. Content Popularity:
+8. Content Popularity:
 {
   "id": "underrated",
   "question": "Are you interested in watching something new that's a bit underrated?",
@@ -146,12 +156,13 @@ When ready=true, extract preferences like this:
   "ready": true,
   "preferences": {
     "mood": "stressed",
+    "contentType": "movies only",
     "watchTime": "30-60 minutes",
     "genres": ["Comedy", "Light Drama"],
     "watchStyle": "background",
     "company": "alone",
     "language": "English only",
-    "underratedInterest": "no preference"
+    "underrated": "no preference"
   }
 }`;
 
