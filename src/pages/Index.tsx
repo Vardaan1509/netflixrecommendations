@@ -14,6 +14,9 @@ interface Preferences {
   genres: string[];
   watchTime: string;
   watchStyle: string;
+  language: string;
+  company: string;
+  underrated: string;
 }
 
 interface Recommendation {

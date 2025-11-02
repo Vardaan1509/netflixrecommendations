@@ -12,6 +12,9 @@ interface QuestionnaireProps {
     genres: string[];
     watchTime: string;
     watchStyle: string;
+    language: string;
+    company: string;
+    underrated: string;
   }) => void;
 }
 
@@ -21,6 +24,9 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
   const [genres, setGenres] = useState<string[]>([]);
   const [watchTime, setWatchTime] = useState("");
   const [watchStyle, setWatchStyle] = useState("");
+  const [language, setLanguage] = useState("");
+  const [company, setCompany] = useState("");
+  const [underrated, setUnderrated] = useState("");
 
   const genreOptions = [
     "Action", "Comedy", "Drama", "Thriller", "Sci-Fi",
@@ -36,8 +42,8 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
   };
 
   const handleComplete = () => {
-    if (mood && genres.length > 0 && watchTime && watchStyle) {
-      onComplete({ mood, genres, watchTime, watchStyle });
+    if (mood && genres.length > 0 && watchTime && watchStyle && language && company && underrated) {
+      onComplete({ mood, genres, watchTime, watchStyle, language, company, underrated });
     }
   };
 
@@ -46,6 +52,9 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
     if (step === 2) return genres.length > 0;
     if (step === 3) return watchTime !== "";
     if (step === 4) return watchStyle !== "";
+    if (step === 5) return language !== "";
+    if (step === 6) return company !== "";
+    if (step === 7) return underrated !== "";
     return false;
   };
 
@@ -53,8 +62,8 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
     <Card className="bg-gradient-to-br from-card to-card/50 backdrop-blur border-border/50">
       <CardHeader>
         <CardTitle className="text-2xl flex items-center justify-between">
-          <span>Question {step} of 4</span>
-          <span className="text-sm text-muted-foreground">{Math.round((step / 4) * 100)}%</span>
+          <span>Question {step} of 7</span>
+          <span className="text-sm text-muted-foreground">{Math.round((step / 7) * 100)}%</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -117,10 +126,52 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">What's your watching style?</h3>
             <RadioGroup value={watchStyle} onValueChange={setWatchStyle}>
-              {["Background viewing", "Focused watching", "Something to discuss", "Solo entertainment", "Nostalgic re-watching", "Watching with friends or family"].map(option => (
+              {["Background viewing", "Focused watching", "Something to discuss", "Solo entertainment", "Nostalgic re-watching"].map(option => (
                 <div key={option} className="flex items-center space-x-2">
                   <RadioGroupItem value={option} id={`style-${option}`} />
                   <Label htmlFor={`style-${option}`} className="cursor-pointer">{option}</Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </div>
+        )}
+
+        {step === 5 && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Preferred Language or Subtitles?</h3>
+            <RadioGroup value={language} onValueChange={setLanguage}>
+              {["English", "Other languages", "Dubbing preferred", "Subtitles preferred", "No preference"].map(option => (
+                <div key={option} className="flex items-center space-x-2">
+                  <RadioGroupItem value={option} id={`language-${option}`} />
+                  <Label htmlFor={`language-${option}`} className="cursor-pointer">{option}</Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </div>
+        )}
+
+        {step === 6 && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Are You Watching Alone or With Company?</h3>
+            <RadioGroup value={company} onValueChange={setCompany}>
+              {["Alone", "With family", "With friends", "Other"].map(option => (
+                <div key={option} className="flex items-center space-x-2">
+                  <RadioGroupItem value={option} id={`company-${option}`} />
+                  <Label htmlFor={`company-${option}`} className="cursor-pointer">{option}</Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </div>
+        )}
+
+        {step === 7 && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Are you interested in watching something new that's a bit underrated?</h3>
+            <RadioGroup value={underrated} onValueChange={setUnderrated}>
+              {["Yes", "No"].map(option => (
+                <div key={option} className="flex items-center space-x-2">
+                  <RadioGroupItem value={option} id={`underrated-${option}`} />
+                  <Label htmlFor={`underrated-${option}`} className="cursor-pointer">{option}</Label>
                 </div>
               ))}
             </RadioGroup>
@@ -137,7 +188,7 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
             Back
           </Button>
           
-          {step < 4 ? (
+          {step < 7 ? (
             <Button
               variant="gradient"
               onClick={() => setStep(s => s + 1)}

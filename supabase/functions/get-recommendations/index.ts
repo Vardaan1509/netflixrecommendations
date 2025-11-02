@@ -47,12 +47,15 @@ Focus on:
 - Genres: ${preferences.genres.join(', ')}
 - Watch Time: ${preferences.watchTime}
 - Watch Style: ${preferences.watchStyle}
+- Language/Subtitles: ${preferences.language}
+- Watching: ${preferences.company}
+- Interested in underrated content: ${preferences.underrated}
 - Netflix Region: ${region}
 
 Recently Watched Shows:
 ${watchedShows.length > 0 ? watchedShows.join(', ') : 'None provided'}
 
-Please provide 6 personalized recommendations that match their current state of mind based on how their day is going.`;
+Please provide 6 personalized recommendations that match their current state of mind based on how their day is going. Consider their language preferences, whether they're watching alone or with company, and if they want underrated content.`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
