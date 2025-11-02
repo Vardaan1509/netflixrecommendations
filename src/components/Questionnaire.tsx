@@ -117,7 +117,7 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">What's your watching style?</h3>
             <RadioGroup value={watchStyle} onValueChange={setWatchStyle}>
-              {["Background viewing", "Focused watching", "Something to discuss", "Solo entertainment"].map(option => (
+              {["Background viewing", "Focused watching", "Something to discuss", "Solo entertainment", "Nostalgic re-watching", "Watching with friends or family"].map(option => (
                 <div key={option} className="flex items-center space-x-2">
                   <RadioGroupItem value={option} id={`style-${option}`} />
                   <Label htmlFor={`style-${option}`} className="cursor-pointer">{option}</Label>
