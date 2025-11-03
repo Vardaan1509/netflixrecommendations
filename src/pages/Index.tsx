@@ -10,7 +10,7 @@ import RegionSelector from "@/components/RegionSelector";
 import RecommendationCard from "@/components/RecommendationCard";
 import { useWatchedShows } from "@/hooks/useWatchedShows";
 import { Sparkles, RefreshCw, LogOut } from "lucide-react";
-import heroBg from "@/assets/hero-bg.jpg";
+import heroBg from "@/assets/netflix-bg.png";
 
 interface Preferences {
   mood: string;
