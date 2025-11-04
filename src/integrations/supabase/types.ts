@@ -38,6 +38,51 @@ export type Database = {
         }
         Relationships: []
       }
+      recommendations: {
+        Row: {
+          created_at: string
+          description: string
+          genre: string
+          id: string
+          match_reason: string
+          rating: string
+          title: string
+          type: string
+          updated_at: string
+          user_id: string
+          user_rating: number | null
+          watched: boolean | null
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          genre: string
+          id?: string
+          match_reason: string
+          rating: string
+          title: string
+          type: string
+          updated_at?: string
+          user_id: string
+          user_rating?: number | null
+          watched?: boolean | null
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          genre?: string
+          id?: string
+          match_reason?: string
+          rating?: string
+          title?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+          user_rating?: number | null
+          watched?: boolean | null
+        }
+        Relationships: []
+      }
       watched_shows: {
         Row: {
           created_at: string

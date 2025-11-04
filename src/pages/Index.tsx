@@ -29,6 +29,8 @@ interface Recommendation {
   description: string;
   matchReason: string;
   rating: string;
+  id?: string;
+  user_rating?: number | null;
 }
 
 const Index = () => {
@@ -84,7 +86,37 @@ const Index = () => {
 
       if (error) throw error;
 
-      setRecommendations(data.recommendations);
+      // Save recommendations to database if user is logged in
+      if (session?.user?.id) {
+        const recommendationsToSave = data.recommendations.map((rec: Recommendation) => ({
+          user_id: session.user.id,
+          title: rec.title,
+          type: rec.type,
+          genre: rec.genre,
+          description: rec.description,
+          match_reason: rec.matchReason,
+          rating: rec.rating,
+        }));
+
+        const { data: savedRecs, error: saveError } = await supabase
+          .from('recommendations')
+          .insert(recommendationsToSave)
+          .select();
+
+        if (saveError) {
+          console.error('Error saving recommendations:', saveError);
+        } else if (savedRecs) {
+          // Add IDs to recommendations
+          const recsWithIds = data.recommendations.map((rec: Recommendation, idx: number) => ({
+            ...rec,
+            id: savedRecs[idx]?.id,
+          }));
+          setRecommendations(recsWithIds);
+        }
+      } else {
+        setRecommendations(data.recommendations);
+      }
+
       setStep("results");
       toast({
         title: "Recommendations ready!",
@@ -99,6 +131,31 @@ const Index = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRateRecommendation = async (recommendationId: string, rating: number) => {
+    if (!session?.user?.id) return;
+
+    try {
+      const { error } = await supabase
+        .from('recommendations')
+        .update({ user_rating: rating })
+        .eq('id', recommendationId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Thanks for rating!",
+        description: "Your feedback helps improve future recommendations.",
+      });
+    } catch (error) {
+      console.error('Error rating recommendation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save rating. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -233,7 +290,11 @@ const Index = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {recommendations.map((rec, index) => (
-              <RecommendationCard key={index} recommendation={rec} />
+              <RecommendationCard 
+                key={rec.id || index} 
+                recommendation={rec}
+                onRate={session?.user?.id ? handleRateRecommendation : undefined}
+              />
             ))}
           </div>
         </div>
