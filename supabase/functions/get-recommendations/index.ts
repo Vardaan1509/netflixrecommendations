@@ -101,14 +101,20 @@ Additional Focus:
 
     let ratingHistoryText = '';
     if (ratingHistory.length > 0) {
-      const liked = ratingHistory.filter(r => r.user_rating === 5);
-      const disliked = ratingHistory.filter(r => r.user_rating === 1);
+      const excellent = ratingHistory.filter(r => r.user_rating === 5);
+      const good = ratingHistory.filter(r => r.user_rating === 4);
+      const okay = ratingHistory.filter(r => r.user_rating === 3);
+      const poor = ratingHistory.filter(r => r.user_rating === 2);
+      const terrible = ratingHistory.filter(r => r.user_rating === 1);
       
       ratingHistoryText = `\n\nUser's Rating History (Learn from this!):
-${liked.length > 0 ? `✅ LOVED these (recommend similar): ${liked.map(r => `${r.title} (${r.type}, ${r.genre})`).join(', ')}` : ''}
-${disliked.length > 0 ? `❌ DISLIKED these (avoid similar): ${disliked.map(r => `${r.title} (${r.type}, ${r.genre})`).join(', ')}` : ''}
+${excellent.length > 0 ? `⭐⭐⭐⭐⭐ LOVED (5/5) - Recommend similar content: ${excellent.map(r => `${r.title} (${r.type}, ${r.genre})`).join(', ')}` : ''}
+${good.length > 0 ? `⭐⭐⭐⭐ LIKED (4/5) - These patterns work well: ${good.map(r => `${r.title} (${r.type}, ${r.genre})`).join(', ')}` : ''}
+${okay.length > 0 ? `⭐⭐⭐ NEUTRAL (3/5) - Acceptable but not ideal: ${okay.map(r => `${r.title} (${r.type}, ${r.genre})`).join(', ')}` : ''}
+${poor.length > 0 ? `⭐⭐ DISLIKED (2/5) - Avoid these patterns: ${poor.map(r => `${r.title} (${r.type}, ${r.genre})`).join(', ')}` : ''}
+${terrible.length > 0 ? `⭐ HATED (1/5) - Strongly avoid similar content: ${terrible.map(r => `${r.title} (${r.type}, ${r.genre})`).join(', ')}` : ''}
 
-IMPORTANT: Use this history to refine recommendations. Avoid patterns from disliked content, replicate patterns from loved content.`;
+CRITICAL: Use this granular feedback to fine-tune recommendations. Prioritize patterns from 5⭐ and 4⭐ content, avoid 1⭐ and 2⭐ patterns.`;
     }
 
     const userPrompt = `User Preferences:

@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Star, Film, Tv, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Star, Film, Tv } from "lucide-react";
 import { useState } from "react";
 
 interface Recommendation {
@@ -61,23 +61,29 @@ const RecommendationCard = ({ recommendation, onRate }: RecommendationCardProps)
           <div className="flex items-center gap-2 pt-2 border-t border-border/50">
             <span className="text-xs text-muted-foreground">Rate this:</span>
             <div className="flex gap-1">
-              <Button
-                size="sm"
-                variant={localRating === 1 ? "default" : "outline"}
-                onClick={() => handleRate(1)}
-                className="h-7 px-2"
-              >
-                <ThumbsDown className="h-3 w-3" />
-              </Button>
-              <Button
-                size="sm"
-                variant={localRating === 5 ? "default" : "outline"}
-                onClick={() => handleRate(5)}
-                className="h-7 px-2"
-              >
-                <ThumbsUp className="h-3 w-3" />
-              </Button>
+              {[1, 2, 3, 4, 5].map((rating) => (
+                <Button
+                  key={rating}
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleRate(rating)}
+                  className="h-7 w-7 p-0 hover:scale-110 transition-transform"
+                >
+                  <Star 
+                    className={`h-4 w-4 transition-colors ${
+                      localRating && rating <= localRating 
+                        ? 'fill-accent text-accent' 
+                        : 'text-muted-foreground'
+                    }`} 
+                  />
+                </Button>
+              ))}
             </div>
+            {localRating && (
+              <span className="text-xs text-accent font-medium ml-1">
+                {localRating}/5
+              </span>
+            )}
           </div>
         )}
       </CardContent>
