@@ -81,7 +81,10 @@ const Index = () => {
           preferences,
           watchedShows: shows,
           region
-        }
+        },
+        headers: session?.access_token ? {
+          Authorization: `Bearer ${session.access_token}`
+        } : undefined
       });
 
       if (error) throw error;

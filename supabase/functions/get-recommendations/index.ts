@@ -15,6 +15,44 @@ serve(async (req) => {
     const { preferences, watchedShows, region } = await req.json();
     console.log('Generating recommendations with:', { preferences, watchedShows, region });
 
+    // Get authorization header
+    const authHeader = req.headers.get('authorization');
+    let userId: string | null = null;
+    let ratingHistory: Array<{ title: string; type: string; genre: string; user_rating: number }> = [];
+
+    // If user is authenticated, fetch their rating history
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+        const supabaseClient = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+          { global: { headers: { Authorization: authHeader } } }
+        );
+
+        const { data: { user } } = await supabaseClient.auth.getUser(token);
+        if (user) {
+          userId = user.id;
+          
+          // Fetch user's past recommendations with ratings
+          const { data: pastRecs } = await supabaseClient
+            .from('recommendations')
+            .select('title, type, genre, user_rating')
+            .eq('user_id', userId)
+            .not('user_rating', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+          if (pastRecs && pastRecs.length > 0) {
+            ratingHistory = pastRecs;
+          }
+        }
+      } catch (error) {
+        console.log('Could not fetch rating history:', error);
+      }
+    }
+
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY is not configured');
@@ -61,6 +99,18 @@ Additional Focus:
 - Provide diverse recommendations across sub-genres
 - Prioritize HIGH-CONFIDENCE regional availability over perfect preference matching`;
 
+    let ratingHistoryText = '';
+    if (ratingHistory.length > 0) {
+      const liked = ratingHistory.filter(r => r.user_rating === 5);
+      const disliked = ratingHistory.filter(r => r.user_rating === 1);
+      
+      ratingHistoryText = `\n\nUser's Rating History (Learn from this!):
+${liked.length > 0 ? `✅ LOVED these (recommend similar): ${liked.map(r => `${r.title} (${r.type}, ${r.genre})`).join(', ')}` : ''}
+${disliked.length > 0 ? `❌ DISLIKED these (avoid similar): ${disliked.map(r => `${r.title} (${r.type}, ${r.genre})`).join(', ')}` : ''}
+
+IMPORTANT: Use this history to refine recommendations. Avoid patterns from disliked content, replicate patterns from loved content.`;
+    }
+
     const userPrompt = `User Preferences:
 - How their day is going: ${preferences.mood}
 - Content Type: ${preferences.contentType || 'both movies and series'}
@@ -73,9 +123,9 @@ Additional Focus:
 - Netflix Region: ${region} ⚠️ CRITICAL: Verify ALL recommendations are available in this specific region
 
 Recently Watched Shows:
-${watchedShows.length > 0 ? watchedShows.join(', ') : 'None provided'}
+${watchedShows.length > 0 ? watchedShows.join(', ') : 'None provided'}${ratingHistoryText}
 
-Please provide 6 personalized recommendations that match their current state of mind based on how their day is going. Consider their language preferences, whether they're watching alone or with company, and if they want underrated content.`;
+Please provide 6 personalized recommendations that match their current state of mind based on how their day is going. Consider their language preferences, whether they're watching alone or with company, and if they want underrated content.${ratingHistory.length > 0 ? ' CRITICAL: Learn from their rating history to provide better matches.' : ''}`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
