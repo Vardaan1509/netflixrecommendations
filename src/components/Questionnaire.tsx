@@ -21,7 +21,7 @@ interface Question {
 
 const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
   const { toast } = useToast();
-  const [conversationHistory, setConversationHistory] = useState<Array<{ question: string; answer: any }>>([]);
+  const [conversationHistory, setConversationHistory] = useState<Array<{ question: Question; answer: any }>>([]);
   const [currentQuestion, setCurrentQuestion] = useState<Question>({
     id: "mood",
     question: "How is your day going so far?",
@@ -50,12 +50,12 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
     }
 
     setIsLoading(true);
-    const newHistory = [...conversationHistory, { question: currentQuestion.question, answer: currentAnswer }];
+    const newHistory = [...conversationHistory, { question: currentQuestion, answer: currentAnswer }];
     setConversationHistory(newHistory);
 
     try {
       const { data, error } = await supabase.functions.invoke('get-next-question', {
-        body: { conversationHistory: newHistory }
+        body: { conversationHistory: newHistory.map(h => ({ question: h.question.question, answer: h.answer })) }
       });
 
       if (error) throw error;
@@ -94,7 +94,11 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
     const newHistory = [...conversationHistory];
     const lastEntry = newHistory.pop();
     setConversationHistory(newHistory);
-    setCurrentAnswer(lastEntry?.answer || "");
+    
+    if (lastEntry) {
+      setCurrentQuestion(lastEntry.question);
+      setCurrentAnswer(lastEntry.answer);
+    }
   };
 
   const canProceed = () => {
