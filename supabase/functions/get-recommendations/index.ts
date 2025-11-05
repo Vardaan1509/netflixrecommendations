@@ -49,9 +49,11 @@ serve(async (req) => {
     // Get authorization header
     const authHeader = req.headers.get('authorization');
     let userId: string | null = null;
-    let ratingHistory: Array<{ title: string; type: string; genre: string; user_rating: number }> = [];
+    let ratingHistory: Array<{ title: string; type: string; genre: string; user_rating: number; watched: boolean | null }> = [];
 
-    // If user is authenticated, fetch their rating history
+    let previouslyRecommended: string[] = [];
+    
+    // If user is authenticated, fetch their rating history and all previous recommendations
     if (authHeader) {
       try {
         const token = authHeader.replace('Bearer ', '');
@@ -66,10 +68,20 @@ serve(async (req) => {
         if (user) {
           userId = user.id;
           
-          // Fetch user's past recommendations with ratings
+          // Fetch ALL past recommendations to avoid repeats
+          const { data: allPastRecs } = await supabaseClient
+            .from('recommendations')
+            .select('title')
+            .eq('user_id', userId);
+          
+          if (allPastRecs && allPastRecs.length > 0) {
+            previouslyRecommended = allPastRecs.map(r => r.title);
+          }
+          
+          // Fetch user's past recommendations with ratings for learning
           const { data: pastRecs } = await supabaseClient
             .from('recommendations')
-            .select('title, type, genre, user_rating')
+            .select('title, type, genre, user_rating, watched')
             .eq('user_id', userId)
             .not('user_rating', 'is', null)
             .order('created_at', { ascending: false })
@@ -147,6 +159,14 @@ ${terrible.length > 0 ? `⭐ HATED (1/5) - Strongly avoid similar content: ${ter
 
 CRITICAL: Use this granular feedback to fine-tune recommendations. Prioritize patterns from 5⭐ and 4⭐ content, avoid 1⭐ and 2⭐ patterns.`;
     }
+    
+    let excludeText = '';
+    if (previouslyRecommended.length > 0) {
+      excludeText = `\n\n🚫 PREVIOUSLY RECOMMENDED - DO NOT REPEAT THESE TITLES:
+${previouslyRecommended.join(', ')}
+
+CRITICAL: You MUST NOT recommend any of these titles again. They have already been shown to the user. Find fresh, new recommendations instead.`;
+    }
 
     const userPrompt = `User Preferences:
 - How their day is going: ${preferences.mood}
@@ -160,7 +180,7 @@ CRITICAL: Use this granular feedback to fine-tune recommendations. Prioritize pa
 - Netflix Region: ${region} ⚠️ CRITICAL: Verify ALL recommendations are available in this specific region
 
 Recently Watched Shows:
-${watchedShows.length > 0 ? watchedShows.join(', ') : 'None provided'}${ratingHistoryText}
+${watchedShows.length > 0 ? watchedShows.join(', ') : 'None provided'}${ratingHistoryText}${excludeText}
 
 Please provide 6 personalized recommendations that match their current state of mind based on how their day is going. Consider their language preferences, whether they're watching alone or with company, and if they want underrated content.${ratingHistory.length > 0 ? ' CRITICAL: Learn from their rating history to provide better matches.' : ''}`;
 

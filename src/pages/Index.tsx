@@ -187,6 +187,48 @@ const Index = () => {
     }
   };
 
+  const handleWatchedStatus = async (recommendationId: string, watched: boolean, liked?: boolean) => {
+    if (!session?.user?.id) return;
+
+    try {
+      const updateData: any = { watched };
+      
+      // If they said they didn't like it, set rating to 1
+      // If they liked it, keep the existing rating
+      if (liked === false) {
+        updateData.user_rating = 1;
+      }
+
+      const { error } = await supabase
+        .from('recommendations')
+        .update(updateData)
+        .eq('id', recommendationId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Got it!",
+        description: watched 
+          ? "Thanks for the feedback! We'll use this to improve your recommendations."
+          : "We'll keep that in mind for future suggestions.",
+      });
+
+      // Update local state
+      setRecommendations(prev => prev.map(rec => 
+        rec.id === recommendationId 
+          ? { ...rec, user_rating: updateData.user_rating ?? rec.user_rating }
+          : rec
+      ));
+    } catch (error) {
+      console.error('Error updating watched status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update status. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleQuestionnaireComplete = (prefs: Preferences) => {
     setPreferences(prefs);
   };
@@ -325,6 +367,7 @@ const Index = () => {
                 key={rec.id || index} 
                 recommendation={rec}
                 onRate={session?.user?.id ? handleRateRecommendation : undefined}
+                onWatchedStatus={session?.user?.id ? handleWatchedStatus : undefined}
               />
             ))}
           </div>

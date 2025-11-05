@@ -18,15 +18,29 @@ interface Recommendation {
 interface RecommendationCardProps {
   recommendation: Recommendation;
   onRate?: (recommendationId: string, rating: number) => void;
+  onWatchedStatus?: (recommendationId: string, watched: boolean, liked?: boolean) => void;
 }
 
-const RecommendationCard = ({ recommendation, onRate }: RecommendationCardProps) => {
+const RecommendationCard = ({ recommendation, onRate, onWatchedStatus }: RecommendationCardProps) => {
   const [localRating, setLocalRating] = useState(recommendation.user_rating);
+  const [showWatchedQuestion, setShowWatchedQuestion] = useState(false);
 
   const handleRate = (rating: number) => {
     setLocalRating(rating);
     if (onRate && recommendation.id) {
       onRate(recommendation.id, rating);
+      
+      // If they rated it 4 or 5 stars, ask if they watched it
+      if (rating >= 4 && onWatchedStatus) {
+        setShowWatchedQuestion(true);
+      }
+    }
+  };
+
+  const handleWatchedResponse = (watched: boolean, liked?: boolean) => {
+    if (onWatchedStatus && recommendation.id) {
+      onWatchedStatus(recommendation.id, watched, liked);
+      setShowWatchedQuestion(false);
     }
   };
 
@@ -57,7 +71,7 @@ const RecommendationCard = ({ recommendation, onRate }: RecommendationCardProps)
             <span className="text-accent font-medium">Why this?</span> {recommendation.matchReason}
           </p>
         </div>
-        {onRate && (
+        {onRate && !showWatchedQuestion && (
           <div className="flex items-center gap-2 pt-2 border-t border-border/50">
             <span className="text-xs text-muted-foreground">Rate this:</span>
             <div className="flex gap-1">
@@ -84,6 +98,40 @@ const RecommendationCard = ({ recommendation, onRate }: RecommendationCardProps)
                 {localRating}/5
               </span>
             )}
+          </div>
+        )}
+        
+        {showWatchedQuestion && (
+          <div className="space-y-3 pt-2 border-t border-border/50">
+            <p className="text-sm text-accent font-medium">
+              You rated {recommendation.title} highly! Have you watched it?
+            </p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleWatchedResponse(false)}
+                className="flex-1"
+              >
+                Not yet
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleWatchedResponse(true, true)}
+                className="flex-1"
+              >
+                Yes, loved it!
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleWatchedResponse(true, false)}
+                className="flex-1"
+              >
+                Yes, didn't like
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>
