@@ -219,14 +219,17 @@ const Index = () => {
 
       {/* Hero Section */}
       {step === "start" && (
-        <div 
-          className="relative min-h-screen flex items-center justify-center overflow-hidden"
-          style={{
-            backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url(${heroBg})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
-        >
+        <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-red-900/20 via-black to-black animate-gradient-shift" />
+          <div 
+            className="absolute inset-0 opacity-30"
+            style={{
+              backgroundImage: `url(${heroBg})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              animation: 'slow-pan 60s ease-in-out infinite alternate',
+            }}
+          />
           <div className="absolute inset-0 bg-gradient-to-b from-background/0 via-background/50 to-background" />
           <div className="relative z-10 text-center px-4 max-w-4xl mx-auto space-y-8">
             <div className="space-y-4">
