@@ -40,8 +40,24 @@ const Index = () => {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
+  const [welcomeIndex, setWelcomeIndex] = useState(0);
   const { toast } = useToast();
   const navigate = useNavigate();
+  
+  const welcomeMessages = [
+    "Welcome", // English
+    "Bienvenido", // Spanish
+    "Bienvenue", // French
+    "Willkommen", // German
+    "Benvenuto", // Italian
+    "Bem-vindo", // Portuguese
+    "欢迎", // Chinese
+    "ようこそ", // Japanese
+    "환영합니다", // Korean
+    "स्वागत है", // Hindi
+    "مرحبا", // Arabic
+    "Добро пожаловать", // Russian
+  ];
   
   const { shows, loading: showsLoading, addShow, removeShow } = useWatchedShows(session?.user?.id);
 
@@ -60,6 +76,15 @@ const Index = () => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    // Rotate welcome messages every 2 seconds (matching pulse animation)
+    const interval = setInterval(() => {
+      setWelcomeIndex((prev) => (prev + 1) % welcomeMessages.length);
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [welcomeMessages.length]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -171,7 +196,7 @@ const Index = () => {
       {/* Header with Auth */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border/50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-xl font-bold">FlickPick AI</h1>
+          <h1 className="text-xl font-bold">Smart Netflix Recommendations</h1>
           <div className="flex items-center gap-4">
             {session ? (
               <>
@@ -206,7 +231,7 @@ const Index = () => {
           <div className="relative z-10 text-center px-4 max-w-4xl mx-auto space-y-8">
             <div className="space-y-4">
               <h1 className="text-5xl md:text-7xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent animate-pulse">
-                Smart Netflix Recommendations
+                {welcomeMessages[welcomeIndex]}
               </h1>
               <p className="text-xl md:text-2xl text-foreground/80 max-w-2xl mx-auto">
                 Stop scrolling endlessly. Get AI-powered recommendations based on your mood, preferences, and viewing history.
