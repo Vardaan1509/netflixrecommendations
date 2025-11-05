@@ -1,10 +1,29 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Input validation schemas
+const preferencesSchema = z.object({
+  mood: z.string().max(100),
+  contentType: z.string().max(50).optional(),
+  watchTime: z.string().max(100),
+  genres: z.array(z.string().max(50)).max(20),
+  company: z.string().max(100),
+  watchStyle: z.string().max(100),
+  language: z.string().max(100),
+  underrated: z.string().max(100)
+});
+
+const recommendationsRequestSchema = z.object({
+  preferences: preferencesSchema,
+  watchedShows: z.array(z.string().max(200)).max(100),
+  region: z.string().max(100)
+});
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -12,8 +31,20 @@ serve(async (req) => {
   }
 
   try {
-    const { preferences, watchedShows, region } = await req.json();
-    console.log('Generating recommendations with:', { preferences, watchedShows, region });
+    const body = await req.json();
+    
+    // Validate input
+    const validation = recommendationsRequestSchema.safeParse(body);
+    if (!validation.success) {
+      console.error('Validation error:', validation.error);
+      return new Response(
+        JSON.stringify({ error: 'Invalid input data', details: validation.error.format() }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { preferences, watchedShows, region } = validation.data;
+    console.log('Generating recommendations for region:', region, 'with', watchedShows.length, 'shows');
 
     // Get authorization header
     const authHeader = req.headers.get('authorization');
