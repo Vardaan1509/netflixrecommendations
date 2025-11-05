@@ -129,7 +129,7 @@ const RecommendationCard = ({ recommendation, onRate, onWatchedStatus }: Recomme
                 onClick={() => handleWatchedResponse(true, false)}
                 className="flex-1"
               >
-                Yes, didn't like
+                Yes, didn't like 
               </Button>
             </div>
           </div>
