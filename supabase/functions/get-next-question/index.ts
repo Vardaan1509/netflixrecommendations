@@ -181,15 +181,13 @@ When ready=true, extract preferences like this:
     "mood": "stressed",
     "contentType": "movies only",
     "watchTime": "30-60 minutes",
-    "genres": ["Comedy", "Light Drama"],  // CRITICAL: Must use "genres" not "genrePreference"
+    "genres": ["Comedy", "Light Drama"],
     "watchStyle": "background",
     "company": "alone",
     "language": "English only",
     "underrated": "no preference"
   }
-}
-
-CRITICAL: When extracting preferences, you MUST use the exact key "genres" (not "genrePreference" or any other variation). This is required for system compatibility.`;
+}`;
 
     const userPrompt = `Conversation so far:
 ${conversationHistory.map((entry: any, idx: number) => `${idx + 1}. Q: ${entry.question}\n   A: ${Array.isArray(entry.answer) ? entry.answer.join(', ') : entry.answer}`).join('\n\n')}

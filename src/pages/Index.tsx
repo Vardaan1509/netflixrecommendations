@@ -101,18 +101,9 @@ const Index = () => {
 
     setLoading(true);
     try {
-      // Transform genrePreference to genres if needed
-      const transformedPreferences = {
-        ...preferences,
-        genres: (preferences as any).genrePreference || preferences.genres || []
-      };
-      
-      // Remove genrePreference if it exists
-      delete (transformedPreferences as any).genrePreference;
-
       const { data, error } = await supabase.functions.invoke('get-recommendations', {
         body: {
-          preferences: transformedPreferences,
+          preferences,
           watchedShows: shows,
           region
         },
