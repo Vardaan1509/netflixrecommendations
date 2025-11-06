@@ -136,7 +136,15 @@ AVAILABLE QUESTION TEMPLATES:
   "options": ["Background watching (easy to follow)", "Focused watching (full attention)", "Nostalgic re-watching", "Both background and focused"]
 }
 
-6. Language/Subtitles:
+6. Age Rating/Content Maturity:
+{
+  "id": "ageRating",
+  "question": "What content maturity level do you prefer?",
+  "type": "radio",
+  "options": ["Family-friendly (G, PG)", "Teen and up (PG-13, TV-14)", "Mature content okay (R, TV-MA)", "No preference"]
+}
+
+7. Language/Subtitles:
 {
   "id": "language",
   "question": "Preferred language or subtitles?",
@@ -144,7 +152,7 @@ AVAILABLE QUESTION TEMPLATES:
   "options": ["English only", "Other languages welcome", "Dubbing preferred", "Subtitles preferred", "No preference"]
 }
 
-7. Watching Context:
+8. Watching Context:
 {
   "id": "company",
   "question": "Are you watching alone or with company?",
@@ -152,7 +160,7 @@ AVAILABLE QUESTION TEMPLATES:
   "options": ["Alone", "With family", "With friends", "Other"]
 }
 
-8. Content Popularity:
+9. Content Popularity:
 {
   "id": "underrated",
   "question": "Are you interested in watching something new that's a bit underrated?",
@@ -185,7 +193,8 @@ When ready=true, extract preferences like this:
     "watchStyle": "background",
     "company": "alone",
     "language": "English only",
-    "underrated": "no preference"
+    "underrated": "no preference",
+    "ageRating": "Family-friendly (G, PG)"
   }
 }`;
 

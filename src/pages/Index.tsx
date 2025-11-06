@@ -191,6 +191,7 @@ const Index = () => {
       toast({
         title: "Thanks for rating!",
         description: "Your feedback helps improve future recommendations.",
+        duration: 2000,
       });
     } catch (error) {
       console.error('Error rating recommendation:', error);
@@ -198,6 +199,7 @@ const Index = () => {
         title: "Error",
         description: "Failed to save rating. Please try again.",
         variant: "destructive",
+        duration: 2000,
       });
     }
   };
@@ -226,6 +228,7 @@ const Index = () => {
         description: watched 
           ? "Thanks for the feedback! We'll use this to improve your recommendations."
           : "We'll keep that in mind for future suggestions.",
+        duration: 2000,
       });
 
       // Update local state

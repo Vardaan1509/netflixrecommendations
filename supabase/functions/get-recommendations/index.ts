@@ -16,7 +16,8 @@ const preferencesSchema = z.object({
   company: z.string().max(100),
   watchStyle: z.string().max(100),
   language: z.string().max(100),
-  underrated: z.string().max(100)
+  underrated: z.string().max(100),
+  ageRating: z.string().max(100).optional()
 });
 
 const recommendationsRequestSchema = z.object({
@@ -117,16 +118,19 @@ Return EXACTLY 6 recommendations in JSON format with this structure:
   ]
 }
 
-⚠️ ABSOLUTE CRITICAL REQUIREMENTS - REGIONAL AVAILABILITY:
+🚨 ABSOLUTE CRITICAL REQUIREMENTS - REGIONAL AVAILABILITY (MOST IMPORTANT):
 1. You MUST ONLY recommend content that is 100% CONFIRMED available in ${region}
-2. BEFORE including ANY title, verify it is currently streaming in ${region}
-3. If you have ANY doubt about regional availability, DO NOT include that title
-4. For Canada specifically:
-   - Many US Netflix exclusives are NOT available
-   - Many documentaries and older films have different availability
-   - Verify each title specifically for Canadian Netflix
-5. Double and triple-check EVERY recommendation is streamable in ${region}
-6. When in doubt, choose more mainstream/popular titles that are definitely available
+2. BEFORE including ANY title, ASK YOURSELF: "Is this DEFINITELY streaming in ${region} RIGHT NOW?"
+3. If you have even 1% doubt about regional availability, DO NOT include that title
+4. Regional availability differences are COMMON and SIGNIFICANT:
+   ${region === 'Canada' ? `
+   - Canada DOES NOT HAVE: The Good Place, Parks and Recreation, The Office (US), many NBC shows
+   - Canada DOES NOT HAVE: Many HBO shows, AMC shows that are on US Netflix
+   - Canada DOES NOT HAVE: Many popular documentaries and independent films
+   - Canada DOES HAVE: Different content deals, many international shows not on US Netflix` : ''}
+5. Triple-check EVERY recommendation against ${region}'s current catalog
+6. When uncertain, choose ONLY globally popular Netflix Originals that are available worldwide
+7. BETTER TO RECOMMEND SOMETHING BORING BUT AVAILABLE than something perfect but unavailable
 
 CONTENT TYPE REQUIREMENTS:
 - User preference: ${preferences.contentType || 'both'}
@@ -142,6 +146,13 @@ CONTENT TYPE REQUIREMENTS:
 - If they like Comedy AND Animation, don't give 4 animated comedies - give variety (1-2 comedies, 1-2 animated shows, 1-2 other genres)
 - Maximum 2 recommendations per genre category
 - Ensure diverse sub-genres and styles within their preferences
+
+🎬 CONTENT MATURITY REQUIREMENT:
+- User's age rating preference: ${preferences.ageRating || 'No preference'}
+- If "Family-friendly" → ONLY G, PG, TV-G, TV-PG rated content
+- If "Teen and up" → PG-13, TV-14 and below
+- If "Mature content okay" → All ratings including R, TV-MA
+- If "No preference" → Any rating is fine
 
 Additional Focus:
 - Match their specific mood: ${preferences.mood}
@@ -184,7 +195,8 @@ CRITICAL: You MUST NOT recommend any of these titles again. They have already be
 - Language/Subtitles: ${preferences.language}
 - Watching: ${preferences.company}
 - Interested in underrated content: ${preferences.underrated}
-- Netflix Region: ${region} ⚠️ CRITICAL: Verify ALL recommendations are available in this specific region
+- Age Rating Preference: ${preferences.ageRating || 'No preference'}
+- Netflix Region: ${region} 🚨 CRITICAL: Verify ALL recommendations are available in this specific region
 
 Recently Watched Shows:
 ${watchedShows.length > 0 ? watchedShows.join(', ') : 'None provided'}${ratingHistoryText}${excludeText}
