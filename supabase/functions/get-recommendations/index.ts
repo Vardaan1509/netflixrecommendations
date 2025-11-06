@@ -45,7 +45,12 @@ serve(async (req) => {
     }
 
     const { preferences, watchedShows, region } = validation.data;
-    console.log('Generating recommendations for region:', region, 'with', watchedShows.length, 'shows');
+    console.log('Recommendation request', {
+      timestamp: new Date().toISOString(),
+      region,
+      showCount: watchedShows?.length || 0,
+      hasPreferences: !!preferences
+    });
 
     // Get authorization header
     const authHeader = req.headers.get('authorization');
@@ -227,7 +232,10 @@ Please provide 6 personalized recommendations that match their current state of 
 
     const data = await response.json();
     const content = data.choices[0].message.content;
-    console.log('AI Response:', content);
+    console.log('Recommendation response generated', {
+      timestamp: new Date().toISOString(),
+      hasContent: !!content
+    });
     
     const recommendations = JSON.parse(content);
 

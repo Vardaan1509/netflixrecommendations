@@ -36,7 +36,10 @@ serve(async (req) => {
     }
 
     const { conversationHistory } = validation.data;
-    console.log('Analyzing conversation with', conversationHistory.length, 'entries');
+    console.log('Question request', {
+      timestamp: new Date().toISOString(),
+      entryCount: conversationHistory.length
+    });
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -227,7 +230,10 @@ What should I do next?`;
 
     const data = await response.json();
     const content = data.choices[0].message.content;
-    console.log('AI Response:', content);
+    console.log('Question response generated', {
+      timestamp: new Date().toISOString(),
+      hasContent: !!content
+    });
     
     const result = JSON.parse(content);
 

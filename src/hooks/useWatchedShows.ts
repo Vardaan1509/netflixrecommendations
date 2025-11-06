@@ -45,18 +45,33 @@ export const useWatchedShows = (userId: string | undefined) => {
       return false;
     }
 
-    if (!title.trim() || shows.includes(title.trim())) {
+    const trimmed = title.trim();
+    
+    if (!trimmed) {
+      return false;
+    }
+    
+    if (trimmed.length > 200) {
+      toast({
+        title: "Error",
+        description: "Show title must be less than 200 characters",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (shows.includes(trimmed)) {
       return false;
     }
 
     try {
       const { error } = await supabase
         .from("watched_shows")
-        .insert({ user_id: userId, title: title.trim() });
+        .insert({ user_id: userId, title: trimmed });
 
       if (error) throw error;
 
-      setShows([title.trim(), ...shows]);
+      setShows([trimmed, ...shows]);
       return true;
     } catch (error: any) {
       toast({

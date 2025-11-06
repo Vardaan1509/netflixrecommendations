@@ -51,6 +51,7 @@ const WatchedShows = ({ shows, loading, onAddShow, onRemoveShow }: WatchedShowsP
             onKeyPress={handleKeyPress}
             className="bg-background/50"
             disabled={isAdding}
+            maxLength={200}
           />
           <Button 
             onClick={handleAddShow}
