@@ -109,77 +109,143 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
   };
 
   return (
-    <Card className="bg-gradient-to-br from-card to-card/50 backdrop-blur border-border/50">
-      <CardHeader>
-        <CardTitle className="text-2xl">Let's find your perfect watch</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold">{currentQuestion.question}</h3>
+    <div className="max-w-3xl mx-auto space-y-6">
+      {/* Progress indicator */}
+      <div className="flex items-center gap-2">
+        {conversationHistory.length > 0 && (
+          <div className="flex gap-1">
+            {conversationHistory.map((_, idx) => (
+              <div key={idx} className="h-1.5 w-8 rounded-full bg-primary/60" />
+            ))}
+            <div className="h-1.5 w-8 rounded-full bg-primary animate-pulse" />
+          </div>
+        )}
+      </div>
+
+      {/* Main content */}
+      <div className="relative">
+        {/* Decorative element */}
+        <div className="absolute -top-4 -left-4 w-24 h-24 bg-primary/5 rounded-full blur-3xl" />
+        <div className="absolute -bottom-4 -right-4 w-32 h-32 bg-accent/5 rounded-full blur-3xl" />
+        
+        <div className="relative bg-card/50 backdrop-blur-xl rounded-2xl border border-border/50 p-8 space-y-8">
+          <div className="space-y-3">
+            <div className="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
+              Question {conversationHistory.length + 1}
+            </div>
+            <h3 className="text-2xl font-bold leading-tight">{currentQuestion.question}</h3>
+          </div>
           
           {currentQuestion.type === "radio" ? (
-            <RadioGroup 
-              value={typeof currentAnswer === "string" ? currentAnswer : ""} 
-              onValueChange={handleAnswerChange}
-            >
-              {currentQuestion.options.map(option => (
-                <div key={option} className="flex items-center space-x-2">
-                  <RadioGroupItem value={option} id={`option-${option}`} />
-                  <Label htmlFor={`option-${option}`} className="cursor-pointer">{option}</Label>
-                </div>
-              ))}
-            </RadioGroup>
+            <div className="grid gap-3">
+              {currentQuestion.options.map(option => {
+                const isSelected = currentAnswer === option;
+                return (
+                  <button
+                    key={option}
+                    onClick={() => handleAnswerChange(option)}
+                    className={`
+                      relative p-4 rounded-xl text-left transition-all duration-200
+                      border-2 hover:scale-[1.02] active:scale-[0.98]
+                      ${isSelected 
+                        ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
+                        : 'border-border/50 bg-card/50 hover:border-primary/50 hover:bg-card/80'
+                      }
+                    `}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`
+                        w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors
+                        ${isSelected ? 'border-primary' : 'border-muted-foreground/30'}
+                      `}>
+                        {isSelected && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-primary animate-scale-in" />
+                        )}
+                      </div>
+                      <span className={`text-sm ${isSelected ? 'text-foreground font-medium' : 'text-foreground/80'}`}>
+                        {option}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {currentQuestion.options.map(option => (
-                <div key={option} className="flex items-center space-x-2">
-                  <Checkbox 
-                    id={`option-${option}`}
-                    checked={Array.isArray(currentAnswer) && currentAnswer.includes(option)}
-                    onCheckedChange={(checked) => {
+            <div className="grid md:grid-cols-2 gap-3">
+              {currentQuestion.options.map(option => {
+                const isChecked = Array.isArray(currentAnswer) && currentAnswer.includes(option);
+                return (
+                  <button
+                    key={option}
+                    onClick={() => {
                       if (Array.isArray(currentAnswer)) {
                         handleAnswerChange(
-                          checked 
-                            ? [...currentAnswer, option]
-                            : currentAnswer.filter(item => item !== option)
+                          isChecked 
+                            ? currentAnswer.filter(item => item !== option)
+                            : [...currentAnswer, option]
                         );
                       }
                     }}
-                  />
-                  <Label htmlFor={`option-${option}`} className="cursor-pointer">{option}</Label>
-                </div>
-              ))}
+                    className={`
+                      relative p-4 rounded-xl text-left transition-all duration-200
+                      border-2 hover:scale-[1.02] active:scale-[0.98]
+                      ${isChecked 
+                        ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
+                        : 'border-border/50 bg-card/50 hover:border-primary/50 hover:bg-card/80'
+                      }
+                    `}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`
+                        w-5 h-5 rounded border-2 flex items-center justify-center transition-colors
+                        ${isChecked ? 'border-primary bg-primary' : 'border-muted-foreground/30'}
+                      `}>
+                        {isChecked && (
+                          <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className={`text-sm ${isChecked ? 'text-foreground font-medium' : 'text-foreground/80'}`}>
+                        {option}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
-        </div>
 
-        <div className="flex justify-between pt-4">
-          <Button
-            variant="ghost"
-            onClick={handleBack}
-            disabled={conversationHistory.length === 0 || isLoading}
-          >
-            <ChevronLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
-          
-          <Button
-            variant="gradient"
-            onClick={handleNext}
-            disabled={!canProceed() || isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              "Continue"
-            )}
-          </Button>
+          <div className="flex items-center justify-between pt-4 border-t border-border/50">
+            <Button
+              variant="ghost"
+              onClick={handleBack}
+              disabled={conversationHistory.length === 0 || isLoading}
+              className="gap-2"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back
+            </Button>
+            
+            <Button
+              variant="gradient"
+              onClick={handleNext}
+              disabled={!canProceed() || isLoading}
+              className="min-w-32"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Thinking...
+                </>
+              ) : (
+                "Continue →"
+              )}
+            </Button>
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 
