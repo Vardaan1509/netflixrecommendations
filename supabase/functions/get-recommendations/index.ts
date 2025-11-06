@@ -135,11 +135,18 @@ CONTENT TYPE REQUIREMENTS:
 - If "Series only" → recommend ONLY series  
 - If "Both" → provide a mix
 
+🎯 GENRE DIVERSITY REQUIREMENT (CRITICAL):
+- User selected these genres: ${preferences.genres.join(', ')}
+- DO NOT focus heavily on just one or two genres
+- SPREAD recommendations across MULTIPLE genres from their list
+- If they like Comedy AND Animation, don't give 4 animated comedies - give variety (1-2 comedies, 1-2 animated shows, 1-2 other genres)
+- Maximum 2 recommendations per genre category
+- Ensure diverse sub-genres and styles within their preferences
+
 Additional Focus:
 - Match their specific mood: ${preferences.mood}
-- Align with their genre preferences
 - Consider watch history to avoid repeats and find similar content
-- Provide diverse recommendations across sub-genres
+- Balance between their preferences while maintaining variety
 - Prioritize HIGH-CONFIDENCE regional availability over perfect preference matching`;
 
     let ratingHistoryText = '';

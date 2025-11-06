@@ -19,9 +19,10 @@ interface RecommendationCardProps {
   recommendation: Recommendation;
   onRate?: (recommendationId: string, rating: number) => void;
   onWatchedStatus?: (recommendationId: string, watched: boolean, liked?: boolean) => void;
+  isRepeat?: boolean;
 }
 
-const RecommendationCard = ({ recommendation, onRate, onWatchedStatus }: RecommendationCardProps) => {
+const RecommendationCard = ({ recommendation, onRate, onWatchedStatus, isRepeat = false }: RecommendationCardProps) => {
   const [localRating, setLocalRating] = useState(recommendation.user_rating);
   const [showWatchedQuestion, setShowWatchedQuestion] = useState(false);
 
@@ -30,8 +31,8 @@ const RecommendationCard = ({ recommendation, onRate, onWatchedStatus }: Recomme
     if (onRate && recommendation.id) {
       onRate(recommendation.id, rating);
       
-      // If they rated it 4 or 5 stars, ask if they watched it
-      if (rating >= 4 && onWatchedStatus) {
+      // Only ask if they watched it if this is a REPEAT recommendation and they rated it 4-5 stars
+      if (rating >= 4 && onWatchedStatus && isRepeat) {
         setShowWatchedQuestion(true);
       }
     }

@@ -31,6 +31,7 @@ interface Recommendation {
   rating: string;
   id?: string;
   user_rating?: number | null;
+  isRepeat?: boolean;
 }
 
 const Index = () => {
@@ -101,6 +102,19 @@ const Index = () => {
 
     setLoading(true);
     try {
+      // First, fetch previous recommendations to detect repeats
+      let previousTitles: string[] = [];
+      if (session?.user?.id) {
+        const { data: prevRecs } = await supabase
+          .from('recommendations')
+          .select('title')
+          .eq('user_id', session.user.id);
+        
+        if (prevRecs) {
+          previousTitles = prevRecs.map(r => r.title.toLowerCase());
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke('get-recommendations', {
         body: {
           preferences,
@@ -134,10 +148,11 @@ const Index = () => {
         if (saveError) {
           console.error('Error saving recommendations:', saveError);
         } else if (savedRecs) {
-          // Add IDs to recommendations
+          // Add IDs and mark repeats
           const recsWithIds = data.recommendations.map((rec: Recommendation, idx: number) => ({
             ...rec,
             id: savedRecs[idx]?.id,
+            isRepeat: previousTitles.includes(rec.title.toLowerCase()),
           }));
           setRecommendations(recsWithIds);
         }
@@ -368,6 +383,7 @@ const Index = () => {
                 recommendation={rec}
                 onRate={session?.user?.id ? handleRateRecommendation : undefined}
                 onWatchedStatus={session?.user?.id ? handleWatchedStatus : undefined}
+                isRepeat={rec.isRepeat || false}
               />
             ))}
           </div>

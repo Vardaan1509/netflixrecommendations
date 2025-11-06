@@ -133,7 +133,7 @@ AVAILABLE QUESTION TEMPLATES:
   "id": "watch_style",
   "question": "What's your watching style today?",
   "type": "radio",
-  "options": ["Background watching (easy to follow)", "Focused watching (full attention)", "Nostalgic re-watching", "Mix of both"]
+  "options": ["Background watching (easy to follow)", "Focused watching (full attention)", "Nostalgic re-watching", "Both background and focused"]
 }
 
 6. Language/Subtitles:
