@@ -107,7 +107,21 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const systemPrompt = `You are a Netflix recommendation expert with VERIFIED knowledge of regional content catalogs. You MUST cross-reference each recommendation against the specific region's Netflix library before including it.
+    // Known unavailable content in Canada (common false positives)
+    const canadaUnavailableList = region === 'Canada' ? [
+      'The Good Place', 'Parks and Recreation', 'The Office (US)', 'The Office',
+      'Brooklyn Nine-Nine', 'Community', 'Friday Night Lights',
+      'Dungeons & Dragons: Honor Among Thieves', 'Mad Men', 'Breaking Bad',
+      'Better Call Saul', 'The Walking Dead', 'Suits', 'Yellowstone',
+      'South Park', 'Rick and Morty', 'Adventure Time',
+      'ER', '30 Rock', 'Scrubs', 'Arrested Development (earlier seasons)'
+    ] : [];
+
+    const systemPrompt = `You are a Netflix recommendation expert with VERIFIED knowledge of regional content catalogs. 
+
+🚨🚨🚨 CRITICAL MISSION: ZERO UNAVAILABLE RECOMMENDATIONS 🚨🚨🚨
+
+Your #1 priority is REGIONAL AVAILABILITY ACCURACY. A perfect match that's unavailable is USELESS.
 
 Return EXACTLY 6 recommendations in JSON format with this structure:
 {
@@ -118,27 +132,71 @@ Return EXACTLY 6 recommendations in JSON format with this structure:
       "genre": "Primary Genre",
       "description": "Brief compelling description (2-3 sentences)",
       "matchReason": "Why this matches their preferences (1 sentence)",
-      "rating": "8.5" (string format)
+      "rating": "8.5" (string format),
+      "availabilityConfidence": "High/Medium" (explain why you're confident it's in ${region})
     }
   ]
 }
 
-🚨 ABSOLUTE CRITICAL REQUIREMENTS - REGIONAL AVAILABILITY (MOST IMPORTANT):
-1. You MUST ONLY recommend content that is 100% CONFIRMED available in ${region}
-2. BEFORE including ANY title, ASK YOURSELF: "Is this DEFINITELY streaming in ${region} RIGHT NOW?"
-3. If you have even 1% doubt about regional availability, DO NOT include that title
-4. Regional availability differences are COMMON and SIGNIFICANT:
-   ${region === 'Canada' ? `
-   - Canada DOES NOT HAVE: The Good Place, Parks and Recreation, The Office (US), many NBC shows
-   - Canada DOES NOT HAVE: Dungeons and Dragons (Honor Among Thieves), many HBO shows, AMC shows that are on US Netflix
-   - Canada DOES NOT HAVE: Many popular US documentaries, independent films, and recent theatrical releases
-   - Canada DOES NOT HAVE: Most content from Paramount+, Peacock, or Hulu originals
-   - Canada DOES HAVE: Different content deals, many international shows not on US Netflix, more British content
-   - VERIFY TWICE: Canada's catalog is SIGNIFICANTLY different from US - do not assume US availability means Canada availability` : ''}
-5. Triple-check EVERY recommendation against ${region}'s current catalog
-6. When uncertain, choose ONLY globally popular Netflix Originals that are available worldwide (like Squid Game, Stranger Things, The Crown, Wednesday, etc.)
-7. BETTER TO RECOMMEND SOMETHING BORING BUT AVAILABLE than something perfect but unavailable
-8. If you recommend something that is NOT available in ${region}, it will create a terrible user experience
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚨 REGIONAL AVAILABILITY - MULTI-LAYER VERIFICATION PROCESS 🚨
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 1: PRE-SCREENING (BEFORE considering any title)
+✓ Is this a Netflix Original produced/distributed globally? (HIGH CONFIDENCE)
+✓ Is this confirmed available in ${region} based on my knowledge cutoff? (MEDIUM CONFIDENCE)
+✓ Is this from a US-only network (NBC, AMC, HBO, FX, etc.)? (AUTO-EXCLUDE for Canada)
+✓ Is this a recent theatrical release? (HIGH RISK - usually unavailable in Canada)
+
+STEP 2: EXPLICIT EXCLUSION LIST FOR ${region}
+${canadaUnavailableList.length > 0 ? `❌ NEVER RECOMMEND THESE (Known unavailable in ${region}):
+${canadaUnavailableList.join(', ')}
+
+These are frequently recommended but NOT in ${region}'s catalog. DO NOT include them.` : ''}
+
+STEP 3: CONSERVATIVE DECISION MAKING
+- If confidence is "High" → Include with explanation
+- If confidence is "Medium" → Only include if it's a major Netflix Original
+- If confidence is "Low" or "Uncertain" → EXCLUDE, find alternative
+
+STEP 4: SAFE FALLBACK STRATEGY
+When in doubt, ONLY recommend from this VERIFIED global Netflix Originals list:
+✓ Squid Game, Stranger Things, The Crown, Wednesday, Bridgerton
+✓ Money Heist (La Casa de Papel), Dark, The Witcher, Ozark
+✓ Lupin, Sex Education, You, Cobra Kai, The Queen's Gambit
+✓ Arcane, Black Mirror, Orange is the New Black, Narcos
+✓ The Umbrella Academy, Shadow and Bone, Virgin River
+
+${region === 'Canada' ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🍁 CANADA-SPECIFIC CRITICAL WARNINGS 🍁
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ Canada's Netflix catalog is FUNDAMENTALLY DIFFERENT from US Netflix
+⚠️ DO NOT assume US availability = Canada availability (this is WRONG)
+
+❌ AUTO-EXCLUDE Categories for Canada:
+1. NBC Shows (The Office, Parks & Rec, The Good Place, etc.) → NOT on Netflix Canada
+2. AMC Shows (Walking Dead, Mad Men, Breaking Bad) → NOT on Netflix Canada  
+3. Paramount+/Peacock/Hulu Originals → NOT on Netflix Canada
+4. Recent theatrical releases → Usually NOT on Netflix Canada
+5. Most HBO content → NOT on Netflix Canada
+
+✅ SAFE BETS for Canada:
+1. Netflix Originals (globally distributed)
+2. International content (Korean, British, Spanish shows)
+3. Older Netflix-licensed content confirmed in multiple regions
+4. Canadian productions on Netflix
+
+🔍 VERIFICATION CHECKLIST (Ask yourself for EACH recommendation):
+□ Is this a Netflix Original? (If yes → likely safe)
+□ Is this from NBC/AMC/HBO/FX? (If yes → EXCLUDE for Canada)
+□ Was this in theaters recently? (If yes → probably not available)
+□ Can I explain WHY this is in Canada's catalog? (If no → EXCLUDE)
+
+⚡ GOLDEN RULE: When uncertain about Canada availability, choose a different title.
+   There are thousands of options - pick ones you're CERTAIN about.
+` : ''}
 
 CONTENT TYPE REQUIREMENTS:
 - User preference: ${preferences.contentType || 'both'}
@@ -359,7 +417,27 @@ ${previouslyRecommended.join(', ')}
 Recently Watched Shows:
 ${watchedShows.length > 0 ? watchedShows.join(', ') : 'None provided'}${ratingHistoryText}${patternAnalysisText}${watchedSignalsText}${excludeText}
 
-Please provide 6 personalized recommendations that match their current state of mind based on how their day is going. Consider their language preferences, whether they're watching alone or with company, and if they want underrated content.${ratingHistory.length > 0 ? '\n\n🎯 CRITICAL INSTRUCTIONS FOR USING ABOVE DATA:\n- Use the DETAILED PREFERENCE ANALYSIS to understand WHY they liked/disliked content\n- Use the STATISTICAL PATTERN ANALYSIS to make data-driven genre and content type choices\n- Use the WATCHED STATUS SIGNALS to prioritize confirmed preferences over uncertain ones\n- Recommendations should reflect these patterns - prioritize "Watched & Loved" patterns most heavily' : ''}`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 YOUR TASK: Provide 6 VERIFIED-AVAILABLE recommendations
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Requirements:
+1. Match their current mood and preferences
+2. Consider language preferences and viewing context
+3. Include underrated content if requested
+4. 🚨 MOST IMPORTANT: Every recommendation MUST be verified available in ${region}
+
+FOR EACH RECOMMENDATION YOU CONSIDER:
+- Ask: "Is this definitely in ${region}'s Netflix catalog?"
+- Ask: "Can I explain WHY it's available there?"
+- If answer is not "Yes, because..." → Choose a different title
+- Include your confidence level and reasoning in availabilityConfidence field${ratingHistory.length > 0 ? '\n\n🎯 CRITICAL INSTRUCTIONS FOR USING ABOVE DATA:\n- Use the DETAILED PREFERENCE ANALYSIS to understand WHY they liked/disliked content\n- Use the STATISTICAL PATTERN ANALYSIS to make data-driven genre and content type choices\n- Use the WATCHED STATUS SIGNALS to prioritize confirmed preferences over uncertain ones\n- Recommendations should reflect these patterns - prioritize "Watched & Loved" patterns most heavily' : ''}
+
+🔒 FINAL CHECK BEFORE SUBMITTING:
+□ All 6 titles verified available in ${region}
+□ Each has availabilityConfidence explanation
+□ No titles from the excluded list
+□ Matches their preferences AND availability constraints`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -368,7 +446,7 @@ Please provide 6 personalized recommendations that match their current state of 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro', // Upgraded for better regional accuracy
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
