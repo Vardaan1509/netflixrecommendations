@@ -156,7 +156,7 @@ CONTENT TYPE REQUIREMENTS:
 - User's age rating preference: ${preferences.ageRating || 'No preference'}
 - If "Family-friendly" → ONLY G, PG, TV-G, TV-PG rated content
 - If "Teen and up" → PG-13, TV-14 and below
-- If "Mature content okay" → All ratings including R, TV-MA
+- If "Mature content" → All ratings including R, TV-MA
 - If "No preference" → Any rating is fine
 
 Additional Focus:

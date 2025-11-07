@@ -144,7 +144,7 @@ AVAILABLE QUESTION TEMPLATES:
   "id": "ageRating",
   "question": "What content maturity level do you prefer?",
   "type": "radio",
-  "options": ["Family-friendly (G, PG)", "Teen and up (PG-13, TV-14)", "Mature content okay (R, TV-MA)", "No preference"]
+  "options": ["Family-friendly (G, PG)", "Teen and up (PG-13, TV-14)", "Mature content", "No preference"]
 }
 
 7. Language/Subtitles:
