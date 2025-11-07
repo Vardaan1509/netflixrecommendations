@@ -55,7 +55,7 @@ serve(async (req) => {
     // Get authorization header
     const authHeader = req.headers.get('authorization');
     let userId: string | null = null;
-    let ratingHistory: Array<{ title: string; type: string; genre: string; user_rating: number; watched: boolean | null }> = [];
+    let ratingHistory: Array<{ title: string; type: string; genre: string; user_rating: number; watched: boolean | null; match_reason: string }> = [];
 
     let previouslyRecommended: string[] = [];
     
@@ -87,11 +87,11 @@ serve(async (req) => {
           // Fetch user's past recommendations with ratings for learning
           const { data: pastRecs } = await supabaseClient
             .from('recommendations')
-            .select('title, type, genre, user_rating, watched')
+            .select('title, type, genre, user_rating, watched, match_reason')
             .eq('user_id', userId)
             .not('user_rating', 'is', null)
             .order('created_at', { ascending: false })
-            .limit(20);
+            .limit(30);
 
           if (pastRecs && pastRecs.length > 0) {
             ratingHistory = pastRecs;
@@ -168,22 +168,167 @@ Additional Focus:
 - Balance between their preferences while maintaining variety
 - Prioritize HIGH-CONFIDENCE regional availability over perfect preference matching`;
 
+    // ============= IMPROVEMENT #2: RICHER CONTEXT WITH REASONS =============
+    // ============= IMPROVEMENT #3: RATING PATTERN ANALYSIS =============
+    // ============= IMPROVEMENT #4: WATCHED STATUS AS STRONG SIGNAL =============
     let ratingHistoryText = '';
+    let patternAnalysisText = '';
+    let watchedSignalsText = '';
+    
     if (ratingHistory.length > 0) {
-      const excellent = ratingHistory.filter(r => r.user_rating === 5);
-      const good = ratingHistory.filter(r => r.user_rating === 4);
-      const okay = ratingHistory.filter(r => r.user_rating === 3);
-      const poor = ratingHistory.filter(r => r.user_rating === 2);
-      const terrible = ratingHistory.filter(r => r.user_rating === 1);
+      // Weight recent ratings more heavily (last 10 vs older ones)
+      const recentRatings = ratingHistory.slice(0, 10);
+      const olderRatings = ratingHistory.slice(10);
       
-      ratingHistoryText = `\n\nUser's Rating History (Learn from this!):
-${excellent.length > 0 ? `⭐⭐⭐⭐⭐ LOVED (5/5) - Recommend similar content: ${excellent.map(r => `${r.title} (${r.type}, ${r.genre})`).join(', ')}` : ''}
-${good.length > 0 ? `⭐⭐⭐⭐ LIKED (4/5) - These patterns work well: ${good.map(r => `${r.title} (${r.type}, ${r.genre})`).join(', ')}` : ''}
-${okay.length > 0 ? `⭐⭐⭐ NEUTRAL (3/5) - Acceptable but not ideal: ${okay.map(r => `${r.title} (${r.type}, ${r.genre})`).join(', ')}` : ''}
-${poor.length > 0 ? `⭐⭐ DISLIKED (2/5) - Avoid these patterns: ${poor.map(r => `${r.title} (${r.type}, ${r.genre})`).join(', ')}` : ''}
-${terrible.length > 0 ? `⭐ HATED (1/5) - Strongly avoid similar content: ${terrible.map(r => `${r.title} (${r.type}, ${r.genre})`).join(', ')}` : ''}
-
-CRITICAL: Use this granular feedback to fine-tune recommendations. Prioritize patterns from 5⭐ and 4⭐ content, avoid 1⭐ and 2⭐ patterns.`;
+      // ============= IMPROVEMENT #2: Richer Context =============
+      // Separate by rating with WHY they liked/disliked (match_reason)
+      const loved = ratingHistory.filter(r => r.user_rating >= 4);
+      const disliked = ratingHistory.filter(r => r.user_rating <= 2);
+      
+      let richContextText = '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+      richContextText += '📊 DETAILED USER PREFERENCE ANALYSIS (USE THIS TO LEARN)\n';
+      richContextText += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+      
+      if (loved.length > 0) {
+        richContextText += '✅ HIGH-RATED CONTENT (4-5 stars) - PRIORITIZE THESE PATTERNS:\n';
+        loved.forEach(r => {
+          richContextText += `   • "${r.title}" (${r.type}, ${r.genre}) - ⭐${r.user_rating}/5\n`;
+          richContextText += `     WHY THEY LOVED IT: ${r.match_reason}\n`;
+        });
+        richContextText += '\n';
+      }
+      
+      if (disliked.length > 0) {
+        richContextText += '❌ LOW-RATED CONTENT (1-2 stars) - AVOID THESE PATTERNS:\n';
+        disliked.forEach(r => {
+          richContextText += `   • "${r.title}" (${r.type}, ${r.genre}) - ⭐${r.user_rating}/5\n`;
+          richContextText += `     WHY THEY DISLIKED IT: ${r.match_reason}\n`;
+        });
+        richContextText += '\n';
+      }
+      
+      richContextText += '⚡ RECENT PREFERENCES (Last 10 ratings - weight these MORE heavily):\n';
+      recentRatings.forEach(r => {
+        richContextText += `   • "${r.title}" - ⭐${r.user_rating}/5 (${r.type}, ${r.genre})\n`;
+      });
+      
+      ratingHistoryText = richContextText;
+      
+      // ============= IMPROVEMENT #3: Rating Pattern Analysis =============
+      // Calculate genre statistics
+      const genreStats: { [key: string]: { total: number; count: number } } = {};
+      ratingHistory.forEach(r => {
+        if (!genreStats[r.genre]) {
+          genreStats[r.genre] = { total: 0, count: 0 };
+        }
+        genreStats[r.genre].total += r.user_rating;
+        genreStats[r.genre].count += 1;
+      });
+      
+      const genreAverages = Object.entries(genreStats)
+        .map(([genre, stats]) => ({
+          genre,
+          avg: stats.total / stats.count,
+          count: stats.count
+        }))
+        .sort((a, b) => b.avg - a.avg);
+      
+      // Calculate content type statistics
+      const seriesRatings = ratingHistory.filter(r => r.type.toLowerCase().includes('series'));
+      const movieRatings = ratingHistory.filter(r => r.type.toLowerCase().includes('movie'));
+      
+      const seriesAvg = seriesRatings.length > 0 
+        ? seriesRatings.reduce((sum, r) => sum + r.user_rating, 0) / seriesRatings.length 
+        : 0;
+      const movieAvg = movieRatings.length > 0 
+        ? movieRatings.reduce((sum, r) => sum + r.user_rating, 0) / movieRatings.length 
+        : 0;
+      
+      patternAnalysisText = '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+      patternAnalysisText += '📈 STATISTICAL PATTERN ANALYSIS (DATA-DRIVEN INSIGHTS)\n';
+      patternAnalysisText += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+      
+      if (genreAverages.length > 0) {
+        const topGenres = genreAverages.filter(g => g.avg >= 4.0);
+        const poorGenres = genreAverages.filter(g => g.avg <= 2.5);
+        
+        if (topGenres.length > 0) {
+          patternAnalysisText += '🎯 HIGHEST-RATED GENRES (Focus recommendations here):\n';
+          topGenres.forEach(g => {
+            patternAnalysisText += `   • ${g.genre}: ${g.avg.toFixed(1)} avg rating (from ${g.count} ${g.count === 1 ? 'rating' : 'ratings'})\n`;
+          });
+          patternAnalysisText += '\n';
+        }
+        
+        if (poorGenres.length > 0) {
+          patternAnalysisText += '⚠️ LOWEST-RATED GENRES (Avoid or be very selective):\n';
+          poorGenres.forEach(g => {
+            patternAnalysisText += `   • ${g.genre}: ${g.avg.toFixed(1)} avg rating (from ${g.count} ${g.count === 1 ? 'rating' : 'ratings'})\n`;
+          });
+          patternAnalysisText += '\n';
+        }
+      }
+      
+      if (seriesRatings.length > 0 || movieRatings.length > 0) {
+        patternAnalysisText += '🎬 CONTENT TYPE PREFERENCE:\n';
+        if (seriesRatings.length > 0) {
+          patternAnalysisText += `   • TV Series: ${seriesAvg.toFixed(1)} avg rating (${seriesRatings.length} ratings)\n`;
+        }
+        if (movieRatings.length > 0) {
+          patternAnalysisText += `   • Movies: ${movieAvg.toFixed(1)} avg rating (${movieRatings.length} ratings)\n`;
+        }
+        
+        const preference = Math.abs(seriesAvg - movieAvg) > 0.5 
+          ? (seriesAvg > movieAvg ? 'STRONGLY prefers TV Series' : 'STRONGLY prefers Movies')
+          : 'No strong preference between Series and Movies';
+        patternAnalysisText += `   📊 INSIGHT: User ${preference}\n\n`;
+      }
+      
+      // ============= IMPROVEMENT #4: Watched Status as Strong Signal =============
+      const watchedAndLoved = ratingHistory.filter(r => r.watched === true && r.user_rating >= 4);
+      const likedButNotWatched = ratingHistory.filter(r => (r.watched === false || r.watched === null) && r.user_rating >= 4);
+      const watchedAndDisliked = ratingHistory.filter(r => r.watched === true && r.user_rating <= 2);
+      
+      watchedSignalsText = '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+      watchedSignalsText += '🎯 WATCHED STATUS SIGNALS (CONFIDENCE LEVELS)\n';
+      watchedSignalsText += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+      
+      if (watchedAndLoved.length > 0) {
+        watchedSignalsText += '🏆 WATCHED & LOVED (HIGHEST CONFIDENCE - STRONGEST SIGNAL):\n';
+        watchedSignalsText += '   These are CONFIRMED great matches - user actually watched AND loved them.\n';
+        watchedSignalsText += '   ⚡ CRITICAL: Prioritize finding content VERY similar to these:\n';
+        watchedAndLoved.forEach(r => {
+          watchedSignalsText += `   • "${r.title}" (${r.type}, ${r.genre}) - ⭐${r.user_rating}/5 ✓ Watched\n`;
+        });
+        watchedSignalsText += '\n';
+      }
+      
+      if (likedButNotWatched.length > 0) {
+        watchedSignalsText += '💭 RATED HIGH BUT NOT WATCHED (LOWER CONFIDENCE):\n';
+        watchedSignalsText += '   User liked the idea but hasn\'t actually watched these yet.\n';
+        watchedSignalsText += '   ⚠️ Consider these preferences but don\'t over-weight them:\n';
+        likedButNotWatched.forEach(r => {
+          watchedSignalsText += `   • "${r.title}" (${r.type}, ${r.genre}) - ⭐${r.user_rating}/5 ✗ Not watched\n`;
+        });
+        watchedSignalsText += '\n';
+      }
+      
+      if (watchedAndDisliked.length > 0) {
+        watchedSignalsText += '🚫 WATCHED BUT DISLIKED (STRONG NEGATIVE SIGNAL):\n';
+        watchedSignalsText += '   User gave these a chance by watching but didn\'t enjoy them.\n';
+        watchedSignalsText += '   ❌ ACTIVELY AVOID content with similar patterns:\n';
+        watchedAndDisliked.forEach(r => {
+          watchedSignalsText += `   • "${r.title}" (${r.type}, ${r.genre}) - ⭐${r.user_rating}/5 ✓ Watched but disliked\n`;
+        });
+        watchedSignalsText += '\n';
+      }
+      
+      watchedSignalsText += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+      watchedSignalsText += 'RECOMMENDATION STRATEGY:\n';
+      watchedSignalsText += '1. Find shows VERY similar to "Watched & Loved" (highest priority)\n';
+      watchedSignalsText += '2. Consider patterns from "Rated High but Not Watched" (medium priority)\n';
+      watchedSignalsText += '3. Strongly avoid patterns from "Watched but Disliked" (critical)\n';
+      watchedSignalsText += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
     }
     
     let excludeText = '';
@@ -212,9 +357,9 @@ ${previouslyRecommended.join(', ')}
 - Netflix Region: ${region} 🚨 CRITICAL: Verify ALL recommendations are available in this specific region
 
 Recently Watched Shows:
-${watchedShows.length > 0 ? watchedShows.join(', ') : 'None provided'}${ratingHistoryText}${excludeText}
+${watchedShows.length > 0 ? watchedShows.join(', ') : 'None provided'}${ratingHistoryText}${patternAnalysisText}${watchedSignalsText}${excludeText}
 
-Please provide 6 personalized recommendations that match their current state of mind based on how their day is going. Consider their language preferences, whether they're watching alone or with company, and if they want underrated content.${ratingHistory.length > 0 ? ' CRITICAL: Learn from their rating history to provide better matches.' : ''}`;
+Please provide 6 personalized recommendations that match their current state of mind based on how their day is going. Consider their language preferences, whether they're watching alone or with company, and if they want underrated content.${ratingHistory.length > 0 ? '\n\n🎯 CRITICAL INSTRUCTIONS FOR USING ABOVE DATA:\n- Use the DETAILED PREFERENCE ANALYSIS to understand WHY they liked/disliked content\n- Use the STATISTICAL PATTERN ANALYSIS to make data-driven genre and content type choices\n- Use the WATCHED STATUS SIGNALS to prioritize confirmed preferences over uncertain ones\n- Recommendations should reflect these patterns - prioritize "Watched & Loved" patterns most heavily' : ''}`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
