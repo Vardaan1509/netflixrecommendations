@@ -16,7 +16,7 @@ const preferencesSchema = z.object({
   company: z.string().max(100),
   watchStyle: z.string().max(100),
   language: z.string().max(100),
-  underrated: z.string().max(100),
+  underrated: z.string().max(100).optional(),
   ageRating: z.string().max(100).optional()
 });
 
