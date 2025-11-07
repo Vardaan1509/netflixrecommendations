@@ -130,12 +130,15 @@ Return EXACTLY 6 recommendations in JSON format with this structure:
 4. Regional availability differences are COMMON and SIGNIFICANT:
    ${region === 'Canada' ? `
    - Canada DOES NOT HAVE: The Good Place, Parks and Recreation, The Office (US), many NBC shows
-   - Canada DOES NOT HAVE: Many HBO shows, AMC shows that are on US Netflix
-   - Canada DOES NOT HAVE: Many popular documentaries and independent films
-   - Canada DOES HAVE: Different content deals, many international shows not on US Netflix` : ''}
+   - Canada DOES NOT HAVE: Dungeons and Dragons (Honor Among Thieves), many HBO shows, AMC shows that are on US Netflix
+   - Canada DOES NOT HAVE: Many popular US documentaries, independent films, and recent theatrical releases
+   - Canada DOES NOT HAVE: Most content from Paramount+, Peacock, or Hulu originals
+   - Canada DOES HAVE: Different content deals, many international shows not on US Netflix, more British content
+   - VERIFY TWICE: Canada's catalog is SIGNIFICANTLY different from US - do not assume US availability means Canada availability` : ''}
 5. Triple-check EVERY recommendation against ${region}'s current catalog
-6. When uncertain, choose ONLY globally popular Netflix Originals that are available worldwide
+6. When uncertain, choose ONLY globally popular Netflix Originals that are available worldwide (like Squid Game, Stranger Things, The Crown, Wednesday, etc.)
 7. BETTER TO RECOMMEND SOMETHING BORING BUT AVAILABLE than something perfect but unavailable
+8. If you recommend something that is NOT available in ${region}, it will create a terrible user experience
 
 CONTENT TYPE REQUIREMENTS:
 - User preference: ${preferences.contentType || 'both'}
@@ -185,10 +188,15 @@ CRITICAL: Use this granular feedback to fine-tune recommendations. Prioritize pa
     
     let excludeText = '';
     if (previouslyRecommended.length > 0) {
-      excludeText = `\n\n🚫 PREVIOUSLY RECOMMENDED - DO NOT REPEAT THESE TITLES:
+      excludeText = `\n\n🚫🚫🚫 PREVIOUSLY RECOMMENDED - ABSOLUTE PROHIBITION - DO NOT REPEAT ANY OF THESE TITLES 🚫🚫🚫:
 ${previouslyRecommended.join(', ')}
 
-CRITICAL: You MUST NOT recommend any of these titles again. They have already been shown to the user. Find fresh, new recommendations instead.`;
+❌ CRITICAL RULE ❌: You are ABSOLUTELY FORBIDDEN from recommending ANY of these titles again, even if they perfectly match the user's preferences.
+- These titles have ALREADY been shown to this user in previous sessions
+- Recommending them again creates a terrible user experience
+- You MUST find completely fresh, NEW recommendations that are NOT in this list
+- If you recommend ANY title from this list, it is a CRITICAL ERROR
+- There are thousands of other shows/movies available - choose from those instead`;
     }
 
     const userPrompt = `User Preferences:

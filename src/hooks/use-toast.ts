@@ -156,6 +156,13 @@ function toast({ ...props }: Toast) {
     },
   });
 
+  // Auto-dismiss after duration if specified
+  if (props.duration !== Infinity) {
+    setTimeout(() => {
+      dismiss();
+    }, props.duration || 5000);
+  }
+
   return {
     id: id,
     dismiss,
