@@ -229,11 +229,19 @@ What should I do next?`;
     }
 
     const data = await response.json();
-    const content = data.choices[0].message.content;
+    let content = data.choices[0].message.content;
     console.log('Question response generated', {
       timestamp: new Date().toISOString(),
       hasContent: !!content
     });
+    
+    // Strip markdown code blocks if present
+    content = content.trim();
+    if (content.startsWith('```json')) {
+      content = content.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (content.startsWith('```')) {
+      content = content.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
     
     const result = JSON.parse(content);
 
