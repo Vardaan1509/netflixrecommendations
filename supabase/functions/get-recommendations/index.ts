@@ -452,6 +452,42 @@ ${previouslyRecommended.join(', ')}
 - There are thousands of other shows/movies available - choose from those instead`;
     }
 
+    // ============= STEP 4: HYBRID MODEL PROMPT =============
+    // Inject embedding-based candidates into the prompt
+    let embeddingCandidatesText = '';
+    if (embeddingBasedCandidates.length > 0) {
+      embeddingCandidatesText = `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🤖 HYBRID MODEL: PRE-FILTERED CANDIDATES (LAYER 1: EMBEDDINGS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+These titles were mathematically identified as MOST SIMILAR to shows the user loved (using AI embeddings):
+${embeddingBasedCandidates.join(', ')}
+
+💡 HOW THIS WORKS (Hybrid AI + Embeddings System):
+   STEP 1 (Embeddings Layer): We analyzed the semantic meaning of shows user rated 4-5 stars
+   STEP 2 (Vector Search): Found these ${embeddingBasedCandidates.length} titles with highest cosine similarity (70%+ match)
+   STEP 3 (AI Layer - YOU): Now apply quality filters:
+      ✓ Regional availability for ${region}
+      ✓ Genre diversity requirements
+      ✓ Maturity level preferences
+      ✓ Content type preferences
+      ✓ Mood and context matching
+
+⚡ YOUR ROLE: These are mathematically similar candidates. Your job is to:
+   1. Verify each title's availability in ${region}
+   2. Select the 6 best matches that also fit preferences
+   3. Ensure genre diversity (max 2 per genre)
+   4. Add human-readable explanations for why each matches
+
+⚠️  IMPORTANT: These candidates are SUGGESTIONS, not requirements. If:
+   - A candidate isn't available in ${region} → EXCLUDE IT
+   - A candidate doesn't fit preferences → EXCLUDE IT
+   - You need more variety → ADD titles from your own knowledge
+   
+   The embedding layer narrows down thousands of options. You refine for quality.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    }
+
     const userPrompt = `User Preferences:
 - How their day is going: ${preferences.mood}
 - Content Type: ${preferences.contentType || 'both movies and series'}
@@ -465,7 +501,7 @@ ${previouslyRecommended.join(', ')}
 - Netflix Region: ${region} 🚨 CRITICAL: Verify ALL recommendations are available in this specific region
 
 Recently Watched Shows:
-${watchedShows.length > 0 ? watchedShows.join(', ') : 'None provided'}${ratingHistoryText}${patternAnalysisText}${watchedSignalsText}${excludeText}
+${watchedShows.length > 0 ? watchedShows.join(', ') : 'None provided'}${ratingHistoryText}${patternAnalysisText}${watchedSignalsText}${embeddingCandidatesText}${excludeText}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎯 YOUR TASK: Provide 6 VERIFIED-AVAILABLE recommendations
@@ -475,7 +511,8 @@ Requirements:
 1. Match their current mood and preferences
 2. Consider language preferences and viewing context
 3. Include underrated content if requested
-4. 🚨 MOST IMPORTANT: Every recommendation MUST be verified available in ${region}
+4. ${embeddingBasedCandidates.length > 0 ? 'START by evaluating the embedding-based candidates above (pre-filtered for similarity)' : 'Use your knowledge to find matches'}
+5. 🚨 MOST IMPORTANT: Every recommendation MUST be verified available in ${region}
 
 FOR EACH RECOMMENDATION YOU CONSIDER:
 - Ask: "Is this definitely in ${region}'s Netflix catalog?"

@@ -188,6 +188,32 @@ const Index = () => {
 
       if (error) throw error;
 
+      // STEP 2: Generate embedding for high ratings (4-5 stars)
+      // This builds the user's personalized similarity database
+      if (rating >= 4) {
+        const recommendation = recommendations.find(r => r.id === recommendationId);
+        if (recommendation) {
+          console.log('Generating embedding for highly rated show:', recommendation.title);
+          
+          // Call the generate-embedding function asynchronously (don't block UI)
+          supabase.functions
+            .invoke('generate-embedding', {
+              body: {
+                title: recommendation.title,
+                description: recommendation.description,
+                rating: rating
+              }
+            })
+            .then(({ error: embeddingError }) => {
+              if (embeddingError) {
+                console.error('Error generating embedding:', embeddingError);
+              } else {
+                console.log('Embedding generated successfully for:', recommendation.title);
+              }
+            });
+        }
+      }
+
       toast({
         title: "Thanks for rating!",
         description: "Your feedback helps improve future recommendations.",
