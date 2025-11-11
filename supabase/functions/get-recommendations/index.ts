@@ -56,10 +56,11 @@ serve(async (req) => {
     const authHeader = req.headers.get('authorization');
     let userId: string | null = null;
     let ratingHistory: Array<{ title: string; type: string; genre: string; user_rating: number; watched: boolean | null; match_reason: string }> = [];
+    let embeddingBasedCandidates: string[] = []; // STEP 3: Candidates from similarity search
 
     let previouslyRecommended: string[] = [];
     
-    // If user is authenticated, fetch their rating history and all previous recommendations
+    // If user is authenticated, fetch their rating history, embeddings, and previous recommendations
     if (authHeader) {
       try {
         const token = authHeader.replace('Bearer ', '');
@@ -95,6 +96,55 @@ serve(async (req) => {
 
           if (pastRecs && pastRecs.length > 0) {
             ratingHistory = pastRecs;
+          }
+
+          // STEP 3: Fetch embedding-based candidates using vector similarity
+          // This is the HYBRID MODEL's first layer: mathematical similarity
+          const { data: embeddings } = await supabaseClient
+            .from('show_embeddings')
+            .select('embedding, title')
+            .eq('user_id', userId)
+            .gte('user_rating', 4) // Only use high-rated shows
+            .order('created_at', { ascending: false })
+            .limit(10); // Use top 10 most recent high-rated shows
+
+          if (embeddings && embeddings.length > 0) {
+            console.log(`Found ${embeddings.length} embeddings for similarity search`);
+            
+            // For each embedding, find similar shows using cosine similarity
+            // We'll aggregate all similar titles across all user's liked shows
+            const allSimilarTitles = new Set<string>();
+
+            for (const userEmbedding of embeddings) {
+              // Use pgvector's cosine similarity search
+              // This finds shows mathematically similar to what the user loved
+              const { data: similarShows } = await supabaseClient.rpc(
+                'match_show_embeddings',
+                {
+                  query_embedding: userEmbedding.embedding,
+                  match_threshold: 0.7, // 70% similarity threshold
+                  match_count: 20 // Top 20 similar per embedding
+                }
+              );
+
+              if (similarShows) {
+                similarShows.forEach((show: { title: string }) => {
+                  // Don't include the same show, watched shows, or previously recommended
+                  if (
+                    show.title !== userEmbedding.title &&
+                    !watchedShows.includes(show.title) &&
+                    !previouslyRecommended.includes(show.title)
+                  ) {
+                    allSimilarTitles.add(show.title);
+                  }
+                });
+              }
+            }
+
+            embeddingBasedCandidates = Array.from(allSimilarTitles).slice(0, 30);
+            console.log(`Generated ${embeddingBasedCandidates.length} embedding-based candidates`);
+          } else {
+            console.log('No embeddings found for user, will use pure AI recommendations');
           }
         }
       } catch (error) {

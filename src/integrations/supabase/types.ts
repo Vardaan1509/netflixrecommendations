@@ -83,6 +83,39 @@ export type Database = {
         }
         Relationships: []
       }
+      show_embeddings: {
+        Row: {
+          created_at: string
+          description: string
+          embedding: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+          user_rating: number
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          embedding: string
+          id?: string
+          title: string
+          updated_at?: string
+          user_id: string
+          user_rating: number
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          embedding?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+          user_rating?: number
+        }
+        Relationships: []
+      }
       watched_shows: {
         Row: {
           created_at: string
