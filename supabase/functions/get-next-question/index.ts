@@ -245,6 +245,19 @@ What should I do next?`;
     
     const result = JSON.parse(content);
 
+    // Normalize preferences to ensure genres is always an array
+    if (result.ready && result.preferences) {
+      if (result.preferences.genres && typeof result.preferences.genres === 'string') {
+        // Split comma-separated string into array
+        result.preferences.genres = result.preferences.genres
+          .split(',')
+          .map((g: string) => g.trim())
+          .filter((g: string) => g.length > 0);
+      } else if (!result.preferences.genres) {
+        result.preferences.genres = [];
+      }
+    }
+
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
