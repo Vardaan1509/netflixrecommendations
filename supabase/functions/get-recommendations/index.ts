@@ -160,9 +160,9 @@ serve(async (req) => {
     // Known unavailable content in Canada (common false positives)
     const canadaUnavailableList = region === 'Canada' ? [
       'The Good Place', 'Parks and Recreation', 'The Office (US)', 'The Office',
-      'Brooklyn Nine-Nine', 'Community', 'Friday Night Lights',
-      'Dungeons & Dragons: Honor Among Thieves', 'Mad Men', 'Breaking Bad',
-      'Better Call Saul', 'The Walking Dead', 'Suits', 'Yellowstone',
+       'Community', 'Friday Night Lights',
+      'Dungeons & Dragons: Honor Among Thieves', 'Mad Men',
+       'The Walking Dead', 'Yellowstone',
       'South Park', 'Rick and Morty', 'Adventure Time',
       'ER', '30 Rock', 'Scrubs', 'Arrested Development (earlier seasons)'
     ] : [];
@@ -227,7 +227,7 @@ ${region === 'Canada' ? `
 
 ❌ AUTO-EXCLUDE Categories for Canada:
 1. NBC Shows (The Office, Parks & Rec, The Good Place, etc.) → NOT on Netflix Canada
-2. AMC Shows (Walking Dead, Mad Men, Breaking Bad) → NOT on Netflix Canada  
+2. AMC Shows (Walking Dead, Mad Men) → NOT on Netflix Canada  
 3. Paramount+/Peacock/Hulu Originals → NOT on Netflix Canada
 4. Recent theatrical releases → Usually NOT on Netflix Canada
 5. Most HBO content → NOT on Netflix Canada
