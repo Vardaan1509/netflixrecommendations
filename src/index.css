@@ -126,36 +126,3 @@ All colors MUST be HSL.
     opacity: 1;
   }
 }
-
-/* Utility classes for enhanced interactions */
-@layer utilities {
-  .hover-lift {
-    @apply transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-[var(--shadow-glow)];
-  }
-  
-  .hover-scale {
-    @apply transition-transform duration-200 ease-out hover:scale-105;
-  }
-  
-  .active-press {
-    @apply active:scale-95 transition-transform duration-100;
-  }
-  
-  .focus-ring-glow {
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background transition-shadow;
-  }
-  
-  .glass-effect {
-    @apply bg-card/50 backdrop-blur-xl border border-border/50;
-  }
-  
-  .shimmer-effect {
-    @apply relative overflow-hidden;
-  }
-  
-  .shimmer-effect::after {
-    content: '';
-    @apply absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent;
-    animation: shimmer 2s linear infinite;
-  }
-}

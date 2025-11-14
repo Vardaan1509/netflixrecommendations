@@ -38,7 +38,7 @@ const WatchedShows = ({ shows, loading, onAddShow, onRemoveShow }: WatchedShowsP
   };
 
   return (
-    <Card className="glass-effect hover-lift overflow-hidden">
+    <Card className="bg-gradient-to-br from-card to-card/50 backdrop-blur border-border/50">
       <CardHeader>
         <CardTitle className="text-xl">Your Watched Shows</CardTitle>
       </CardHeader>
@@ -49,7 +49,7 @@ const WatchedShows = ({ shows, loading, onAddShow, onRemoveShow }: WatchedShowsP
             value={newShow}
             onChange={(e) => setNewShow(e.target.value)}
             onKeyPress={handleKeyPress}
-            className="bg-background/50 focus-ring-glow transition-all"
+            className="bg-background/50"
             disabled={isAdding}
             maxLength={200}
           />
@@ -58,7 +58,6 @@ const WatchedShows = ({ shows, loading, onAddShow, onRemoveShow }: WatchedShowsP
             variant="secondary"
             size="icon"
             disabled={isAdding}
-            className="hover-scale active-press"
           >
             {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
           </Button>
@@ -70,17 +69,16 @@ const WatchedShows = ({ shows, loading, onAddShow, onRemoveShow }: WatchedShowsP
           </div>
         ) : shows.length > 0 ? (
           <div className="flex flex-wrap gap-2">
-            {shows.map((show, index) => (
+            {shows.map((show) => (
               <Badge 
                 key={show} 
                 variant="secondary"
-                className="px-3 py-1.5 text-sm flex items-center gap-1 animate-scale-in hover-scale"
-                style={{ animationDelay: `${index * 0.05}s` }}
+                className="px-3 py-1.5 text-sm flex items-center gap-1"
               >
                 {show}
                 <button
                   onClick={() => handleRemoveShow(show)}
-                  className="ml-1 hover:text-destructive transition-colors hover-scale active-press"
+                  className="ml-1 hover:text-destructive transition-colors"
                 >
                   <X className="h-3 w-3" />
                 </button>

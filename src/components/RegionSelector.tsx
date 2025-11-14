@@ -27,19 +27,19 @@ const regions = [
 
 const RegionSelector = ({ region, onRegionChange }: RegionSelectorProps) => {
   return (
-    <Card className="glass-effect hover-lift overflow-hidden">
+    <Card className="bg-gradient-to-br from-card to-card/50 backdrop-blur border-border/50">
       <CardHeader>
         <CardTitle className="text-xl flex items-center gap-2">
-          <Globe className="h-5 w-5 text-accent" />
+          <Globe className="h-5 w-5" />
           Netflix Region
         </CardTitle>
       </CardHeader>
       <CardContent>
         <Select value={region} onValueChange={onRegionChange}>
-          <SelectTrigger className="bg-background/50 focus-ring-glow transition-all hover-scale">
+          <SelectTrigger className="bg-background/50">
             <SelectValue placeholder="Select your Netflix region" />
           </SelectTrigger>
-          <SelectContent className="animate-fade-in">
+          <SelectContent>
             {regions.map((r) => (
               <SelectItem key={r} value={r}>
                 {r}

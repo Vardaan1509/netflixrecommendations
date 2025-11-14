@@ -146,9 +146,9 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
                     onClick={() => handleAnswerChange(option)}
                     className={`
                       relative p-4 rounded-xl text-left transition-all duration-200
-                      border-2 hover-scale active-press
+                      border-2 hover:scale-[1.02] active:scale-[0.98]
                       ${isSelected 
-                        ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)] animate-scale-in' 
+                        ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
                         : 'border-border/50 bg-card/50 hover:border-primary/50 hover:bg-card/80'
                       }
                     `}
@@ -188,9 +188,9 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
                     }}
                     className={`
                       relative p-4 rounded-xl text-left transition-all duration-200
-                      border-2 hover-scale active-press
+                      border-2 hover:scale-[1.02] active:scale-[0.98]
                       ${isChecked 
-                        ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)] animate-scale-in' 
+                        ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
                         : 'border-border/50 bg-card/50 hover:border-primary/50 hover:bg-card/80'
                       }
                     `}
@@ -221,7 +221,7 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
               variant="ghost"
               onClick={handleBack}
               disabled={conversationHistory.length === 0 || isLoading}
-              className="gap-2 hover-scale active-press"
+              className="gap-2"
             >
               <ChevronLeft className="h-4 w-4" />
               Back
@@ -231,7 +231,7 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
               variant="gradient"
               onClick={handleNext}
               disabled={!canProceed() || isLoading}
-              className="min-w-32 hover-scale active-press"
+              className="min-w-32"
             >
               {isLoading ? (
                 <>
