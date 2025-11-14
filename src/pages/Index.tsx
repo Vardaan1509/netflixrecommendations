@@ -329,7 +329,7 @@ const Index = () => {
             <Button 
               size="lg" 
               variant="gradient"
-              className="text-lg px-8 py-6"
+              className="text-lg px-8 py-6 hover-scale active-press shadow-[var(--shadow-glow)] animate-pulse-glow"
               onClick={() => setStep("input")}
             >
               Get Started
@@ -340,33 +340,39 @@ const Index = () => {
 
       {/* Input Section */}
       {step === "input" && (
-        <div className="container mx-auto px-4 py-12 max-w-4xl space-y-8 pt-24">
-          <div className="text-center space-y-2 mb-8">
+        <div className="container mx-auto px-4 py-12 max-w-4xl space-y-8 pt-24 animate-fade-in">
+          <div className="text-center space-y-2 mb-8 animate-fade-in-up">
             <h2 className="text-3xl md:text-4xl font-bold">Let's Find Your Perfect Watch</h2>
             <p className="text-muted-foreground">Answer a few questions to get personalized recommendations</p>
           </div>
 
           <div className="space-y-6">
-            <RegionSelector region={region} onRegionChange={setRegion} />
+            <div className="animate-slide-in-left">
+              <RegionSelector region={region} onRegionChange={setRegion} />
+            </div>
             
             {!preferences ? (
-              <Questionnaire onComplete={handleQuestionnaireComplete} />
+              <div className="animate-fade-in-up">
+                <Questionnaire onComplete={handleQuestionnaireComplete} />
+              </div>
             ) : (
               <>
-                <WatchedShows 
-                  shows={shows} 
-                  loading={showsLoading}
-                  onAddShow={addShow}
-                  onRemoveShow={removeShow}
-                />
+                <div className="animate-slide-in-right">
+                  <WatchedShows 
+                    shows={shows} 
+                    loading={showsLoading}
+                    onAddShow={addShow}
+                    onRemoveShow={removeShow}
+                  />
+                </div>
                 
-                <div className="flex justify-center pt-4">
+                <div className="flex justify-center pt-4 animate-bounce-in">
                   <Button 
                     size="lg"
                     variant="gradient"
                     onClick={handleGetRecommendations}
                     disabled={loading}
-                    className="text-lg px-8"
+                    className="text-lg px-8 hover-scale active-press"
                   >
                     {loading ? (
                       <>
@@ -389,16 +395,19 @@ const Index = () => {
 
       {/* Results Section */}
       {step === "results" && (
-        <div className="container mx-auto px-4 py-12 max-w-6xl space-y-8 pt-24">
-          <div className="text-center space-y-4">
-            <h2 className="text-3xl md:text-4xl font-bold">Your Personalized Recommendations</h2>
-            <p className="text-muted-foreground">Based on your preferences and viewing history</p>
+        <div className="container mx-auto px-4 py-12 max-w-6xl space-y-8 pt-24 animate-fade-in">
+          <div className="text-center space-y-4 animate-fade-in-up">
+            <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
+              Your Personalized Recommendations
+            </h2>
+            <p className="text-muted-foreground text-lg">Based on your preferences and viewing history</p>
             <Button 
               variant="outline" 
               onClick={() => {
                 setStep("input");
                 setPreferences(null);
               }}
+              className="hover-scale active-press"
             >
               Start Over
             </Button>
@@ -406,13 +415,18 @@ const Index = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {recommendations.map((rec, index) => (
-              <RecommendationCard 
-                key={rec.id || index} 
-                recommendation={rec}
-                onRate={session?.user?.id ? handleRateRecommendation : undefined}
-                onWatchedStatus={session?.user?.id ? handleWatchedStatus : undefined}
-                isRepeat={rec.isRepeat || false}
-              />
+              <div 
+                key={rec.id || index}
+                className="animate-fade-in-up"
+                style={{ animationDelay: `${index * 0.1}s` }}
+              >
+                <RecommendationCard 
+                  recommendation={rec}
+                  onRate={session?.user?.id ? handleRateRecommendation : undefined}
+                  onWatchedStatus={session?.user?.id ? handleWatchedStatus : undefined}
+                  isRepeat={rec.isRepeat || false}
+                />
+              </div>
             ))}
           </div>
         </div>
