@@ -46,7 +46,7 @@ const RecommendationCard = ({ recommendation, onRate, onWatchedStatus, isRepeat 
   };
 
   return (
-    <Card className="group hover:shadow-[var(--shadow-glow)] transition-all duration-300 bg-gradient-to-br from-card to-card/50 backdrop-blur border-border/50 hover:border-primary/50">
+    <Card className="group animate-fade-in-up hover-lift bg-gradient-to-br from-card to-card/50 backdrop-blur border-border/50 hover:border-primary/50 overflow-hidden">
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-lg group-hover:text-primary transition-colors">
@@ -82,7 +82,7 @@ const RecommendationCard = ({ recommendation, onRate, onWatchedStatus, isRepeat 
                   size="sm"
                   variant="ghost"
                   onClick={() => handleRate(rating)}
-                  className="h-7 w-7 p-0 hover:scale-110 transition-transform"
+                  className="h-7 w-7 p-0 hover-scale active-press"
                 >
                   <Star 
                     className={`h-4 w-4 transition-colors ${
