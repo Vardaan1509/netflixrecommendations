@@ -533,7 +533,7 @@ FOR EACH RECOMMENDATION YOU CONSIDER:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-pro-preview', // Latest Gemini 3 for best quality
+        model: 'google/gemini-2.5-pro',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
