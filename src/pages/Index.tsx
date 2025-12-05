@@ -339,7 +339,7 @@ const Index = () => {
               backgroundImage: `url(${heroBg})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
-              animation: 'slow-pan 60s ease-in-out infinite alternate',
+              animation: 'slow-pan 20s ease-in-out infinite alternate',
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-b from-background/0 via-background/50 to-background" />
