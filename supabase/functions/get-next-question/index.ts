@@ -174,6 +174,7 @@ AVAILABLE QUESTION TEMPLATES:
 RESPONSE FORMAT (return valid JSON only):
 {
   "ready": false,
+  "confidence": 35,  // 0-100, how confident you are in giving recommendations
   "needsClarification": false,
   "message": "optional message if needsClarification is true",
   "nextQuestion": {
@@ -185,9 +186,16 @@ RESPONSE FORMAT (return valid JSON only):
   "preferences": {} // only if ready=true, extract all preferences with clear keys
 }
 
+CONFIDENCE CALCULATION:
+- Start at ~15% after first question
+- Add ~10-15% for each meaningful answer that fills a REQUIRED category
+- Reach 85-95% when you have all required info
+- Set ready=true AND confidence=100 when fully confident
+
 When ready=true, extract preferences like this:
 {
   "ready": true,
+  "confidence": 100,
   "preferences": {
     "mood": "stressed",
     "contentType": "movies only",
