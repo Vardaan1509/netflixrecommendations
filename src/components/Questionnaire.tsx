@@ -145,10 +145,6 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
   const questionNumber = isShowingSameAsLast 
     ? conversationHistory.length 
     : conversationHistory.length + 1;
-  
-  // Estimate progress - typically 5-8 questions, aim for ~6
-  const estimatedTotal = 6;
-  const progressPercent = Math.min((questionNumber / estimatedTotal) * 100, 95);
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -159,18 +155,9 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
         <div className="absolute -bottom-4 -right-4 w-32 h-32 bg-accent/5 rounded-full blur-3xl" />
         
         <div className="relative bg-card/50 backdrop-blur-xl rounded-2xl border border-border/50 p-8 space-y-8">
-          {/* Progress bar */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-muted-foreground">Question {questionNumber}</span>
-              <span className="text-muted-foreground">{Math.round(progressPercent)}% complete</span>
-            </div>
-            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
+          {/* Question indicator */}
+          <div className="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
+            Question {questionNumber}
           </div>
           
           <div className="space-y-3">
