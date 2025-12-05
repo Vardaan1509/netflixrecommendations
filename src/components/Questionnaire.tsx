@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -19,26 +19,52 @@ interface Question {
   options: string[];
 }
 
+const defaultQuestion: Question = {
+  id: "mood",
+  question: "How is your day going so far?",
+  type: "radio",
+  options: [
+    "Great, everything is going well!",
+    "Pretty good, can't complain.",
+    "It's okay, nothing special.",
+    "A bit stressful, to be honest.",
+    "Not so great, having a rough day.",
+    "Could be better, thanks for asking.",
+    "I'm feeling tired or overwhelmed.",
+    "Excited and productive today"
+  ]
+};
+
 const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
   const { toast } = useToast();
-  const [conversationHistory, setConversationHistory] = useState<Array<{ question: Question; answer: any }>>([]);
-  const [currentQuestion, setCurrentQuestion] = useState<Question>({
-    id: "mood",
-    question: "How is your day going so far?",
-    type: "radio",
-    options: [
-      "Great, everything is going well!",
-      "Pretty good, can't complain.",
-      "It's okay, nothing special.",
-      "A bit stressful, to be honest.",
-      "Not so great, having a rough day.",
-      "Could be better, thanks for asking.",
-      "I'm feeling tired or overwhelmed.",
-      "Excited and productive today"
-    ]
+  
+  // Restore state from sessionStorage
+  const [conversationHistory, setConversationHistory] = useState<Array<{ question: Question; answer: any }>>(() => {
+    const saved = sessionStorage.getItem('questionnaire-history');
+    return saved ? JSON.parse(saved) : [];
   });
-  const [currentAnswer, setCurrentAnswer] = useState<string | string[]>("");
+  const [currentQuestion, setCurrentQuestion] = useState<Question>(() => {
+    const saved = sessionStorage.getItem('questionnaire-current');
+    return saved ? JSON.parse(saved) : defaultQuestion;
+  });
+  const [currentAnswer, setCurrentAnswer] = useState<string | string[]>(() => {
+    const saved = sessionStorage.getItem('questionnaire-answer');
+    return saved ? JSON.parse(saved) : "";
+  });
   const [isLoading, setIsLoading] = useState(false);
+
+  // Persist state to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('questionnaire-history', JSON.stringify(conversationHistory));
+  }, [conversationHistory]);
+
+  useEffect(() => {
+    sessionStorage.setItem('questionnaire-current', JSON.stringify(currentQuestion));
+  }, [currentQuestion]);
+
+  useEffect(() => {
+    sessionStorage.setItem('questionnaire-answer', JSON.stringify(currentAnswer));
+  }, [currentAnswer]);
 
   const handleAnswerChange = (value: string | string[]) => {
     setCurrentAnswer(value);
@@ -61,7 +87,10 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
       if (error) throw error;
 
       if (data.ready) {
-        // AI is confident, generate recommendations
+        // AI is confident, clear saved state and generate recommendations
+        sessionStorage.removeItem('questionnaire-history');
+        sessionStorage.removeItem('questionnaire-current');
+        sessionStorage.removeItem('questionnaire-answer');
         onComplete(data.preferences);
       } else if (data.needsClarification) {
         // Show clarification message
