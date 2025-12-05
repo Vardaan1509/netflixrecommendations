@@ -35,15 +35,36 @@ interface Recommendation {
 }
 
 const Index = () => {
-  const [step, setStep] = useState<"start" | "input" | "results">("start");
-  const [preferences, setPreferences] = useState<Preferences | null>(null);
-  const [region, setRegion] = useState("United States");
+  const [step, setStep] = useState<"start" | "input" | "results">(() => {
+    const saved = sessionStorage.getItem('questionnaire-step');
+    return (saved as "start" | "input" | "results") || "start";
+  });
+  const [preferences, setPreferences] = useState<Preferences | null>(() => {
+    const saved = sessionStorage.getItem('questionnaire-preferences');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [region, setRegion] = useState(() => {
+    return sessionStorage.getItem('questionnaire-region') || "United States";
+  });
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [welcomeIndex, setWelcomeIndex] = useState(0);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Persist questionnaire state to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('questionnaire-step', step);
+  }, [step]);
+
+  useEffect(() => {
+    sessionStorage.setItem('questionnaire-preferences', JSON.stringify(preferences));
+  }, [preferences]);
+
+  useEffect(() => {
+    sessionStorage.setItem('questionnaire-region', region);
+  }, [region]);
   
   const welcomeMessages = [
     "Welcome", // English
@@ -401,6 +422,11 @@ const Index = () => {
             <Button 
               variant="outline" 
               onClick={() => {
+                // Clear all questionnaire state
+                sessionStorage.removeItem('questionnaire-history');
+                sessionStorage.removeItem('questionnaire-current');
+                sessionStorage.removeItem('questionnaire-answer');
+                sessionStorage.removeItem('questionnaire-preferences');
                 setStep("input");
                 setPreferences(null);
               }}
