@@ -137,20 +137,21 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
     return currentAnswer !== "";
   };
 
+  // Current question number (1-indexed)
+  // Handle edge case: if current question matches the last answered one (user left mid-transition),
+  // we're still on that question number
+  const lastAnsweredQuestion = conversationHistory[conversationHistory.length - 1]?.question;
+  const isShowingSameAsLast = lastAnsweredQuestion?.id === currentQuestion.id;
+  const questionNumber = isShowingSameAsLast 
+    ? conversationHistory.length 
+    : conversationHistory.length + 1;
+  
+  // Estimate progress - typically 5-8 questions, aim for ~6
+  const estimatedTotal = 6;
+  const progressPercent = Math.min((questionNumber / estimatedTotal) * 100, 95);
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {/* Progress indicator */}
-      <div className="flex items-center gap-2">
-        {conversationHistory.length > 0 && (
-          <div className="flex gap-1">
-            {conversationHistory.map((_, idx) => (
-              <div key={idx} className="h-1.5 w-8 rounded-full bg-primary/60" />
-            ))}
-            <div className="h-1.5 w-8 rounded-full bg-primary animate-pulse" />
-          </div>
-        )}
-      </div>
-
       {/* Main content */}
       <div className="relative">
         {/* Decorative element */}
@@ -158,10 +159,21 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
         <div className="absolute -bottom-4 -right-4 w-32 h-32 bg-accent/5 rounded-full blur-3xl" />
         
         <div className="relative bg-card/50 backdrop-blur-xl rounded-2xl border border-border/50 p-8 space-y-8">
-          <div className="space-y-3">
-            <div className="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
-              Question {conversationHistory.length + 1}
+          {/* Progress bar */}
+          <div className="space-y-2">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-muted-foreground">Question {questionNumber}</span>
+              <span className="text-muted-foreground">{Math.round(progressPercent)}% complete</span>
             </div>
+            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          </div>
+          
+          <div className="space-y-3">
             <h3 className="text-2xl font-bold leading-tight">{currentQuestion.question}</h3>
           </div>
           
