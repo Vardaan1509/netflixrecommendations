@@ -51,6 +51,10 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
     const saved = sessionStorage.getItem('questionnaire-answer');
     return saved ? JSON.parse(saved) : "";
   });
+  const [confidence, setConfidence] = useState<number>(() => {
+    const saved = sessionStorage.getItem('questionnaire-confidence');
+    return saved ? JSON.parse(saved) : 10;
+  });
   const [isLoading, setIsLoading] = useState(false);
 
   // Persist state to sessionStorage
@@ -65,6 +69,10 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
   useEffect(() => {
     sessionStorage.setItem('questionnaire-answer', JSON.stringify(currentAnswer));
   }, [currentAnswer]);
+
+  useEffect(() => {
+    sessionStorage.setItem('questionnaire-confidence', JSON.stringify(confidence));
+  }, [confidence]);
 
   const handleAnswerChange = (value: string | string[]) => {
     setCurrentAnswer(value);
@@ -86,11 +94,17 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
 
       if (error) throw error;
 
+      // Update confidence from AI response
+      if (data.confidence !== undefined) {
+        setConfidence(data.confidence);
+      }
+
       if (data.ready) {
         // AI is confident, clear saved state and generate recommendations
         sessionStorage.removeItem('questionnaire-history');
         sessionStorage.removeItem('questionnaire-current');
         sessionStorage.removeItem('questionnaire-answer');
+        sessionStorage.removeItem('questionnaire-confidence');
         onComplete(data.preferences);
       } else if (data.needsClarification) {
         // Show clarification message
@@ -155,9 +169,22 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
         <div className="absolute -bottom-4 -right-4 w-32 h-32 bg-accent/5 rounded-full blur-3xl" />
         
         <div className="relative bg-card/50 backdrop-blur-xl rounded-2xl border border-border/50 p-8 space-y-8">
-          {/* Question indicator */}
-          <div className="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
-            Question {questionNumber}
+          {/* Progress bar showing AI confidence */}
+          <div className="space-y-2">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-muted-foreground">Question {questionNumber}</span>
+              <span className="text-muted-foreground">
+                {confidence >= 90 ? "Almost ready!" : confidence >= 60 ? "Getting there..." : "Learning your preferences"}
+              </span>
+            </div>
+            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+              <div 
+                className={`h-full rounded-full transition-all duration-700 ease-out ${
+                  confidence >= 90 ? 'bg-green-500' : 'bg-primary'
+                }`}
+                style={{ width: `${confidence}%` }}
+              />
+            </div>
           </div>
           
           <div className="space-y-3">

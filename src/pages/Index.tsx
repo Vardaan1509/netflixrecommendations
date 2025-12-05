@@ -427,6 +427,7 @@ const Index = () => {
                 sessionStorage.removeItem('questionnaire-current');
                 sessionStorage.removeItem('questionnaire-answer');
                 sessionStorage.removeItem('questionnaire-preferences');
+                sessionStorage.removeItem('questionnaire-confidence');
                 setStep("input");
                 setPreferences(null);
               }}
