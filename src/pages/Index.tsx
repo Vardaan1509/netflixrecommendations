@@ -9,7 +9,7 @@ import WatchedShows from "@/components/WatchedShows";
 import RegionSelector from "@/components/RegionSelector";
 import RecommendationCard from "@/components/RecommendationCard";
 import { useWatchedShows } from "@/hooks/useWatchedShows";
-import { Sparkles, RefreshCw, LogOut } from "lucide-react";
+import { Sparkles, RefreshCw, LogOut, Star, BookmarkCheck, TrendingUp } from "lucide-react";
 import heroBg from "@/assets/netflix-bg.png";
 
 interface Preferences {
@@ -360,6 +360,38 @@ const Index = () => {
             >
               Get Started
             </Button>
+
+            {/* Sign-in benefits callout */}
+            {!session && (
+              <div className="mt-12 p-6 rounded-2xl bg-card/30 backdrop-blur-md border border-border/50 max-w-lg mx-auto">
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <span className="font-semibold text-foreground">Unlock More Features</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                  <div className="flex items-start gap-2">
+                    <BookmarkCheck className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                    <span className="text-muted-foreground">Save your watched shows</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Star className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
+                    <span className="text-muted-foreground">Rate recommendations</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <TrendingUp className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    <span className="text-muted-foreground">Get smarter suggestions</span>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-4 w-full"
+                  onClick={() => navigate("/auth")}
+                >
+                  Sign in for free
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -370,6 +402,22 @@ const Index = () => {
           <div className="text-center space-y-2 mb-8">
             <h2 className="text-3xl md:text-4xl font-bold">Let's Find Your Perfect Watch</h2>
             <p className="text-muted-foreground">Answer a few questions to get personalized recommendations</p>
+            
+            {/* Inline sign-in reminder */}
+            {!session && (
+              <div className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-sm">
+                <Star className="h-4 w-4 text-yellow-500" />
+                <span className="text-muted-foreground">
+                  <button 
+                    onClick={() => navigate("/auth")}
+                    className="text-primary hover:underline font-medium"
+                  >
+                    Sign in
+                  </button>
+                  {" "}to save shows & rate recommendations
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="space-y-6">
