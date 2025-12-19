@@ -9,7 +9,7 @@ import WatchedShows from "@/components/WatchedShows";
 import RegionSelector from "@/components/RegionSelector";
 import RecommendationCard from "@/components/RecommendationCard";
 import { useWatchedShows } from "@/hooks/useWatchedShows";
-import { Sparkles, RefreshCw, LogOut, Star, BookmarkCheck, TrendingUp } from "lucide-react";
+import { Sparkles, RefreshCw, LogOut, Star } from "lucide-react";
 import heroBg from "@/assets/netflix-bg.png";
 
 interface Preferences {
@@ -364,23 +364,11 @@ const Index = () => {
             {/* Sign-in benefits callout */}
             {!session && (
               <div className="mt-12 p-6 rounded-2xl bg-card/30 backdrop-blur-md border border-border/50 max-w-lg mx-auto">
-                <div className="flex items-center gap-2 mb-4">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                  <span className="font-semibold text-foreground">Unlock More Features</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                  <div className="flex items-start gap-2">
-                    <BookmarkCheck className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-                    <span className="text-muted-foreground">Save your watched shows</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Star className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
-                    <span className="text-muted-foreground">Rate recommendations</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <TrendingUp className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                    <span className="text-muted-foreground">Get smarter suggestions</span>
-                  </div>
+                <p className="font-semibold text-foreground mb-4">Unlock More Features</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-muted-foreground">
+                  <span>Save your watched shows</span>
+                  <span>Rate recommendations</span>
+                  <span>Get smarter suggestions</span>
                 </div>
                 <Button 
                   variant="outline" 
