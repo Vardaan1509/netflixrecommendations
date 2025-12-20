@@ -351,6 +351,17 @@ const Index = () => {
               <p className="text-xl md:text-2xl text-foreground/80 max-w-2xl mx-auto">
                 Stop scrolling endlessly. Get AI-powered recommendations based on your mood, preferences, and viewing history.
               </p>
+              {!session && (
+                <p className="text-sm text-muted-foreground">
+                  <button 
+                    onClick={() => navigate("/auth")}
+                    className="text-primary hover:underline"
+                  >
+                    Sign in for free
+                  </button>
+                  {" "}to save shows & unlock more features
+                </p>
+              )}
             </div>
             <Button 
               size="lg" 
@@ -360,26 +371,6 @@ const Index = () => {
             >
               Get Started
             </Button>
-
-            {/* Sign-in benefits callout */}
-            {!session && (
-              <div className="mt-12 p-6 rounded-2xl bg-card/30 backdrop-blur-md border border-border/50 max-w-lg mx-auto">
-                <p className="font-semibold text-foreground mb-4">Unlock More Features</p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-muted-foreground">
-                  <span>Save your watched shows</span>
-                  <span>Rate recommendations</span>
-                  <span>Get smarter suggestions</span>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-4 w-full"
-                  onClick={() => navigate("/auth")}
-                >
-                  Sign in for free
-                </Button>
-              </div>
-            )}
           </div>
         </div>
       )}
