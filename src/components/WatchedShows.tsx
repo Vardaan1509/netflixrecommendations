@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, Loader2 } from "lucide-react";
+import { X, Plus, Loader2, Film, Sparkles } from "lucide-react";
 
 interface WatchedShowsProps {
   shows: string[];
@@ -38,47 +37,65 @@ const WatchedShows = ({ shows, loading, onAddShow, onRemoveShow }: WatchedShowsP
   };
 
   return (
-    <Card className="bg-gradient-to-br from-card to-card/50 backdrop-blur border-border/50">
-      <CardHeader>
-        <CardTitle className="text-xl">Your Watched Shows</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex gap-2">
-          <Input
-            placeholder="Add a show you've watched..."
-            value={newShow}
-            onChange={(e) => setNewShow(e.target.value)}
-            onKeyPress={handleKeyPress}
-            className="bg-background/50"
-            disabled={isAdding}
-            maxLength={200}
-          />
+    <div className="relative">
+      {/* Subtle glow */}
+      <div className="absolute -inset-0.5 bg-gradient-to-r from-accent/10 to-primary/10 rounded-2xl blur-lg opacity-50" />
+      
+      <div className="relative glass-strong rounded-xl p-6 space-y-5 hover-lift">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent/20 to-primary/20 flex items-center justify-center">
+            <Film className="h-5 w-5 text-accent" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-foreground">Your Watch History</h3>
+            <p className="text-sm text-muted-foreground">Help us avoid recommending shows you've seen</p>
+          </div>
+        </div>
+        
+        {/* Input */}
+        <div className="flex gap-3">
+          <div className="relative flex-1">
+            <Input
+              placeholder="Add a show you've watched..."
+              value={newShow}
+              onChange={(e) => setNewShow(e.target.value)}
+              onKeyPress={handleKeyPress}
+              className="bg-secondary/50 border-border/50 rounded-xl h-12 pl-4 pr-4 focus:border-accent focus:ring-accent/20"
+              disabled={isAdding}
+              maxLength={200}
+            />
+          </div>
           <Button 
             onClick={handleAddShow}
-            variant="secondary"
+            variant="gradient"
             size="icon"
-            disabled={isAdding}
+            disabled={isAdding || !newShow.trim()}
+            className="h-12 w-12 rounded-xl shrink-0"
           >
-            {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            {isAdding ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
           </Button>
         </div>
         
+        {/* Shows list */}
         {loading ? (
-          <div className="flex justify-center py-4">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <div className="flex items-center justify-center py-8 gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <span className="text-sm text-muted-foreground">Loading your shows...</span>
           </div>
         ) : shows.length > 0 ? (
           <div className="flex flex-wrap gap-2">
-            {shows.map((show) => (
+            {shows.map((show, index) => (
               <Badge 
                 key={show} 
                 variant="secondary"
-                className="px-3 py-1.5 text-sm flex items-center gap-1"
+                className="group px-4 py-2 text-sm rounded-full bg-secondary/80 hover:bg-secondary border border-border/30 hover:border-primary/30 transition-all animate-fade-in"
+                style={{ animationDelay: `${index * 0.05}s` }}
               >
-                {show}
+                <span className="mr-2">{show}</span>
                 <button
                   onClick={() => handleRemoveShow(show)}
-                  className="ml-1 hover:text-destructive transition-colors"
+                  className="w-5 h-5 rounded-full bg-muted/50 hover:bg-destructive/20 hover:text-destructive flex items-center justify-center transition-all group-hover:scale-110"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -86,12 +103,18 @@ const WatchedShows = ({ shows, loading, onAddShow, onRemoveShow }: WatchedShowsP
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            No shows added yet. Add some to get better recommendations!
-          </p>
+          <div className="flex flex-col items-center justify-center py-8 gap-3 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-secondary/50 flex items-center justify-center">
+              <Sparkles className="h-8 w-8 text-muted-foreground/50" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">No shows added yet</p>
+              <p className="text-xs text-muted-foreground mt-1">Add some to get better recommendations!</p>
+            </div>
+          </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 
