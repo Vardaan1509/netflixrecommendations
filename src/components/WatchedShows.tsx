@@ -38,9 +38,9 @@ const WatchedShows = ({ shows, loading, onAddShow, onRemoveShow }: WatchedShowsP
   };
 
   return (
-    <Card className="bg-card border-border">
+    <Card className="bg-gradient-to-br from-card to-card/50 backdrop-blur border-border/50">
       <CardHeader>
-        <CardTitle className="text-lg">Your Watched Shows</CardTitle>
+        <CardTitle className="text-xl">Your Watched Shows</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex gap-2">
@@ -49,7 +49,7 @@ const WatchedShows = ({ shows, loading, onAddShow, onRemoveShow }: WatchedShowsP
             value={newShow}
             onChange={(e) => setNewShow(e.target.value)}
             onKeyPress={handleKeyPress}
-            className="bg-secondary border-border"
+            className="bg-background/50"
             disabled={isAdding}
             maxLength={200}
           />

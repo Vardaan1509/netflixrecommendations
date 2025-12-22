@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronLeft, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +38,7 @@ const defaultQuestion: Question = {
 const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
   const { toast } = useToast();
   
+  // Restore state from sessionStorage
   const [conversationHistory, setConversationHistory] = useState<Array<{ question: Question; answer: any }>>(() => {
     const saved = sessionStorage.getItem('questionnaire-history');
     return saved ? JSON.parse(saved) : [];
@@ -53,6 +57,7 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
   });
   const [isLoading, setIsLoading] = useState(false);
 
+  // Persist state to sessionStorage
   useEffect(() => {
     sessionStorage.setItem('questionnaire-history', JSON.stringify(conversationHistory));
   }, [conversationHistory]);
@@ -89,17 +94,20 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
 
       if (error) throw error;
 
+      // Update confidence from AI response
       if (data.confidence !== undefined) {
         setConfidence(data.confidence);
       }
 
       if (data.ready) {
+        // AI is confident, clear saved state and generate recommendations
         sessionStorage.removeItem('questionnaire-history');
         sessionStorage.removeItem('questionnaire-current');
         sessionStorage.removeItem('questionnaire-answer');
         sessionStorage.removeItem('questionnaire-confidence');
         onComplete(data.preferences);
       } else if (data.needsClarification) {
+        // Show clarification message
         toast({
           title: "Let's try again",
           description: data.message,
@@ -107,6 +115,7 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
         setCurrentQuestion(data.nextQuestion);
         setCurrentAnswer(data.nextQuestion.type === "checkbox" ? [] : "");
       } else {
+        // Continue with next question
         setCurrentQuestion(data.nextQuestion);
         setCurrentAnswer(data.nextQuestion.type === "checkbox" ? [] : "");
       }
@@ -142,6 +151,9 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
     return currentAnswer !== "";
   };
 
+  // Current question number (1-indexed)
+  // Handle edge case: if current question matches the last answered one (user left mid-transition),
+  // we're still on that question number
   const lastAnsweredQuestion = conversationHistory[conversationHistory.length - 1]?.question;
   const isShowingSameAsLast = lastAnsweredQuestion?.id === currentQuestion.id;
   const questionNumber = isShowingSameAsLast 
@@ -149,123 +161,146 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
     : conversationHistory.length + 1;
 
   return (
-    <Card className="bg-card border-border">
-      <CardContent className="p-6 space-y-6">
-        {/* Progress */}
-        <div className="space-y-2">
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-muted-foreground">Question {questionNumber}</span>
-            <span className="text-muted-foreground">
-              {confidence >= 90 ? "Almost ready!" : confidence >= 60 ? "Getting there..." : "Learning your preferences"}
-            </span>
-          </div>
-          <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-            <div 
-              className={`h-full rounded-full transition-all duration-500 ${
-                confidence >= 90 ? 'bg-green-500' : 'bg-primary'
-              }`}
-              style={{ width: `${confidence}%` }}
-            />
-          </div>
-        </div>
+    <div className="max-w-3xl mx-auto space-y-6">
+      {/* Main content */}
+      <div className="relative">
+        {/* Decorative element */}
+        <div className="absolute -top-4 -left-4 w-24 h-24 bg-primary/5 rounded-full blur-3xl" />
+        <div className="absolute -bottom-4 -right-4 w-32 h-32 bg-accent/5 rounded-full blur-3xl" />
         
-        {/* Question */}
-        <h3 className="text-xl font-semibold">{currentQuestion.question}</h3>
-        
-        {/* Options */}
-        {currentQuestion.type === "radio" ? (
+        <div className="relative bg-card/50 backdrop-blur-xl rounded-2xl border border-border/50 p-8 space-y-8">
+          {/* Progress bar showing AI confidence */}
           <div className="space-y-2">
-            {currentQuestion.options.map(option => {
-              const isSelected = currentAnswer === option;
-              return (
-                <button
-                  key={option}
-                  onClick={() => handleAnswerChange(option)}
-                  className={`w-full p-4 rounded-lg text-left transition-colors border ${
-                    isSelected 
-                      ? 'border-primary bg-primary/10' 
-                      : 'border-border bg-secondary/50 hover:bg-secondary'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                      isSelected ? 'border-primary' : 'border-muted-foreground'
-                    }`}>
-                      {isSelected && <div className="w-2 h-2 rounded-full bg-primary" />}
-                    </div>
-                    <span className="text-sm">{option}</span>
-                  </div>
-                </button>
-              );
-            })}
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-muted-foreground">Question {questionNumber}</span>
+              <span className="text-muted-foreground">
+                {confidence >= 90 ? "Almost ready!" : confidence >= 60 ? "Getting there..." : "Learning your preferences"}
+              </span>
+            </div>
+            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+              <div 
+                className={`h-full rounded-full transition-all duration-700 ease-out ${
+                  confidence >= 90 ? 'bg-green-500' : 'bg-primary'
+                }`}
+                style={{ width: `${confidence}%` }}
+              />
+            </div>
           </div>
-        ) : (
-          <div className="grid md:grid-cols-2 gap-2">
-            {currentQuestion.options.map(option => {
-              const isChecked = Array.isArray(currentAnswer) && currentAnswer.includes(option);
-              return (
-                <button
-                  key={option}
-                  onClick={() => {
-                    if (Array.isArray(currentAnswer)) {
-                      handleAnswerChange(
-                        isChecked 
-                          ? currentAnswer.filter(item => item !== option)
-                          : [...currentAnswer, option]
-                      );
-                    }
-                  }}
-                  className={`p-4 rounded-lg text-left transition-colors border ${
-                    isChecked 
-                      ? 'border-primary bg-primary/10' 
-                      : 'border-border bg-secondary/50 hover:bg-secondary'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${
-                      isChecked ? 'border-primary bg-primary' : 'border-muted-foreground'
-                    }`}>
-                      {isChecked && (
-                        <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </div>
-                    <span className="text-sm">{option}</span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Navigation */}
-        <div className="flex items-center justify-between pt-4 border-t border-border">
-          <Button
-            variant="ghost"
-            onClick={handleBack}
-            disabled={conversationHistory.length === 0 || isLoading}
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Back
-          </Button>
           
-          <Button
-            onClick={handleNext}
-            disabled={!canProceed() || isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Thinking...
-              </>
-            ) : (
-              "Continue"
-            )}
-          </Button>
+          <div className="space-y-3">
+            <h3 className="text-2xl font-bold leading-tight">{currentQuestion.question}</h3>
+          </div>
+          
+          {currentQuestion.type === "radio" ? (
+            <div className="grid gap-3">
+              {currentQuestion.options.map(option => {
+                const isSelected = currentAnswer === option;
+                return (
+                  <button
+                    key={option}
+                    onClick={() => handleAnswerChange(option)}
+                    className={`
+                      relative p-4 rounded-xl text-left transition-all duration-200
+                      border-2 hover:scale-[1.02] active:scale-[0.98]
+                      ${isSelected 
+                        ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
+                        : 'border-border/50 bg-card/50 hover:border-primary/50 hover:bg-card/80'
+                      }
+                    `}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`
+                        w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors
+                        ${isSelected ? 'border-primary' : 'border-muted-foreground/30'}
+                      `}>
+                        {isSelected && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-primary animate-scale-in" />
+                        )}
+                      </div>
+                      <span className={`text-sm ${isSelected ? 'text-foreground font-medium' : 'text-foreground/80'}`}>
+                        {option}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-3">
+              {currentQuestion.options.map(option => {
+                const isChecked = Array.isArray(currentAnswer) && currentAnswer.includes(option);
+                return (
+                  <button
+                    key={option}
+                    onClick={() => {
+                      if (Array.isArray(currentAnswer)) {
+                        handleAnswerChange(
+                          isChecked 
+                            ? currentAnswer.filter(item => item !== option)
+                            : [...currentAnswer, option]
+                        );
+                      }
+                    }}
+                    className={`
+                      relative p-4 rounded-xl text-left transition-all duration-200
+                      border-2 hover:scale-[1.02] active:scale-[0.98]
+                      ${isChecked 
+                        ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
+                        : 'border-border/50 bg-card/50 hover:border-primary/50 hover:bg-card/80'
+                      }
+                    `}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`
+                        w-5 h-5 rounded border-2 flex items-center justify-center transition-colors
+                        ${isChecked ? 'border-primary bg-primary' : 'border-muted-foreground/30'}
+                      `}>
+                        {isChecked && (
+                          <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className={`text-sm ${isChecked ? 'text-foreground font-medium' : 'text-foreground/80'}`}>
+                        {option}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-4 border-t border-border/50">
+            <Button
+              variant="ghost"
+              onClick={handleBack}
+              disabled={conversationHistory.length === 0 || isLoading}
+              className="gap-2"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back
+            </Button>
+            
+            <Button
+              variant="gradient"
+              onClick={handleNext}
+              disabled={!canProceed() || isLoading}
+              className="min-w-32"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Thinking...
+                </>
+              ) : (
+                "Continue →"
+              )}
+            </Button>
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 

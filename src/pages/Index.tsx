@@ -53,6 +53,7 @@ const Index = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // Persist questionnaire state to sessionStorage
   useEffect(() => {
     sessionStorage.setItem('questionnaire-step', step);
   }, [step]);
@@ -66,29 +67,31 @@ const Index = () => {
   }, [region]);
   
   const welcomeMessages = [
-    "Welcome",
-    "Bienvenido",
-    "Bienvenue",
-    "Willkommen",
-    "Benvenuto",
-    "Bem-vindo",
-    "欢迎",
-    "ようこそ",
-    "환영합니다",
-    "स्वागत है",
-    "مرحبا",
-    "Добро пожаловать",
+    "Welcome", // English
+    "Bienvenido", // Spanish
+    "Bienvenue", // French
+    "Willkommen", // German
+    "Benvenuto", // Italian
+    "Bem-vindo", // Portuguese
+    "欢迎", // Chinese
+    "ようこそ", // Japanese
+    "환영합니다", // Korean
+    "स्वागत है", // Hindi
+    "مرحبا", // Arabic
+    "Добро пожаловать", // Russian
   ];
   
   const { shows, loading: showsLoading, addShow, removeShow } = useWatchedShows(session?.user?.id);
 
   useEffect(() => {
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
       }
     );
 
+    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
     });
@@ -97,6 +100,7 @@ const Index = () => {
   }, []);
 
   useEffect(() => {
+    // Rotate welcome messages every 2 seconds (matching pulse animation)
     const interval = setInterval(() => {
       setWelcomeIndex((prev) => (prev + 1) % welcomeMessages.length);
     }, 2000);
@@ -119,6 +123,7 @@ const Index = () => {
 
     setLoading(true);
     try {
+      // First, fetch previous recommendations to detect repeats
       let previousTitles: string[] = [];
       if (session?.user?.id) {
         const { data: prevRecs } = await supabase
@@ -144,6 +149,7 @@ const Index = () => {
 
       if (error) throw error;
 
+      // Save recommendations to database if user is logged in
       if (session?.user?.id) {
         const recommendationsToSave = data.recommendations.map((rec: Recommendation) => ({
           user_id: session.user.id,
@@ -163,6 +169,7 @@ const Index = () => {
         if (saveError) {
           console.error('Error saving recommendations:', saveError);
         } else if (savedRecs) {
+          // Add IDs and mark repeats
           const recsWithIds = data.recommendations.map((rec: Recommendation, idx: number) => ({
             ...rec,
             id: savedRecs[idx]?.id,
@@ -202,11 +209,14 @@ const Index = () => {
 
       if (error) throw error;
 
+      // STEP 2: Generate embedding for high ratings (4-5 stars)
+      // This builds the user's personalized similarity database
       if (rating >= 4) {
         const recommendation = recommendations.find(r => r.id === recommendationId);
         if (recommendation) {
           console.log('Generating embedding for highly rated show:', recommendation.title);
           
+          // Call the generate-embedding function asynchronously (don't block UI)
           supabase.functions
             .invoke('generate-embedding', {
               body: {
@@ -245,8 +255,10 @@ const Index = () => {
     if (!session?.user?.id) return;
 
     try {
-      const updateData: Record<string, unknown> = { watched };
+      const updateData: any = { watched };
       
+      // If they said they didn't like it, set rating to 1
+      // If they liked it, keep the existing rating
       if (liked === false) {
         updateData.user_rating = 1;
       }
@@ -266,9 +278,10 @@ const Index = () => {
         duration: 2000,
       });
 
+      // Update local state
       setRecommendations(prev => prev.map(rec => 
         rec.id === recommendationId 
-          ? { ...rec, user_rating: (updateData.user_rating as number) ?? rec.user_rating }
+          ? { ...rec, user_rating: updateData.user_rating ?? rec.user_rating }
           : rec
       ));
     } catch (error) {
@@ -287,14 +300,14 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
+      {/* Header with Auth */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border/50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <h1 
-            className="text-xl font-bold cursor-pointer hover:text-primary transition-colors" 
+            className="text-xl font-bold cursor-pointer hover:opacity-80 transition-opacity" 
             onClick={() => setStep('start')}
           >
-            StreamPick
+            Smart Netflix Recommendations
           </h1>
           <div className="flex items-center gap-4">
             {session ? (
@@ -308,7 +321,7 @@ const Index = () => {
                 </Button>
               </>
             ) : (
-              <Button variant="default" size="sm" onClick={() => navigate("/auth")}>
+              <Button variant="outline" size="sm" onClick={() => navigate("/auth")}>
                 Sign In
               </Button>
             )}
@@ -319,22 +332,23 @@ const Index = () => {
       {/* Hero Section */}
       {step === "start" && (
         <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-red-900/20 via-black to-black animate-gradient-shift" />
           <div 
             className="absolute inset-0 opacity-30"
             style={{
               backgroundImage: `url(${heroBg})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
+              animation: 'slow-pan 20s ease-in-out infinite alternate',
             }}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/60" />
-          
-          <div className="relative z-10 text-center px-4 max-w-3xl mx-auto space-y-8">
+          <div className="absolute inset-0 bg-gradient-to-b from-background/0 via-background/50 to-background" />
+          <div className="relative z-10 text-center px-4 max-w-4xl mx-auto space-y-8">
             <div className="space-y-4">
-              <h1 className="text-5xl md:text-7xl font-bold text-foreground">
+              <h1 className="text-5xl md:text-7xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent animate-pulse">
                 {welcomeMessages[welcomeIndex]}
               </h1>
-              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              <p className="text-xl md:text-2xl text-foreground/80 max-w-2xl mx-auto">
                 Stop scrolling endlessly. Get AI-powered recommendations based on your mood, preferences, and viewing history.
               </p>
               {!session && (
@@ -351,6 +365,7 @@ const Index = () => {
             </div>
             <Button 
               size="lg" 
+              variant="gradient"
               className="text-lg px-8 py-6"
               onClick={() => setStep("input")}
             >
@@ -367,9 +382,10 @@ const Index = () => {
             <h2 className="text-3xl md:text-4xl font-bold">Let's Find Your Perfect Watch</h2>
             <p className="text-muted-foreground">Answer a few questions to get personalized recommendations</p>
             
+            {/* Inline sign-in reminder */}
             {!session && (
-              <div className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-secondary text-sm">
-                <Star className="h-4 w-4 text-primary" />
+              <div className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-sm">
+                <Star className="h-4 w-4 text-yellow-500" />
                 <span className="text-muted-foreground">
                   <button 
                     onClick={() => navigate("/auth")}
@@ -400,6 +416,7 @@ const Index = () => {
                 <div className="flex justify-center pt-4">
                   <Button 
                     size="lg"
+                    variant="gradient"
                     onClick={handleGetRecommendations}
                     disabled={loading}
                     className="text-lg px-8"
@@ -432,6 +449,7 @@ const Index = () => {
             <Button 
               variant="outline" 
               onClick={() => {
+                // Clear all questionnaire state
                 sessionStorage.removeItem('questionnaire-history');
                 sessionStorage.removeItem('questionnaire-current');
                 sessionStorage.removeItem('questionnaire-answer');
