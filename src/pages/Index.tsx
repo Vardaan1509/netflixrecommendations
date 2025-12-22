@@ -8,9 +8,8 @@ import Questionnaire from "@/components/Questionnaire";
 import WatchedShows from "@/components/WatchedShows";
 import RegionSelector from "@/components/RegionSelector";
 import RecommendationCard from "@/components/RecommendationCard";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import { useWatchedShows } from "@/hooks/useWatchedShows";
-import { Sparkles, RefreshCw, LogOut, Star, Play, Film, Tv, Clapperboard } from "lucide-react";
+import { Sparkles, RefreshCw, LogOut, Star } from "lucide-react";
 import heroBg from "@/assets/netflix-bg.png";
 
 interface Preferences {
@@ -54,7 +53,6 @@ const Index = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Persist questionnaire state to sessionStorage
   useEffect(() => {
     sessionStorage.setItem('questionnaire-step', step);
   }, [step]);
@@ -287,57 +285,30 @@ const Index = () => {
     setPreferences(prefs);
   };
 
-  const floatingIcons = [
-    { Icon: Film, delay: 0, x: "10%", y: "20%" },
-    { Icon: Tv, delay: 2, x: "85%", y: "15%" },
-    { Icon: Clapperboard, delay: 4, x: "15%", y: "70%" },
-    { Icon: Star, delay: 1, x: "80%", y: "75%" },
-    { Icon: Play, delay: 3, x: "50%", y: "85%" },
-  ];
-
   return (
-    <div className="min-h-screen bg-background relative">
-      <AnimatedBackground variant={step === "start" ? "hero" : "page"} />
-      
-      {/* Header with Auth */}
-      <header className="fixed top-0 left-0 right-0 z-50 glass-strong">
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <button 
+          <h1 
+            className="text-xl font-bold cursor-pointer hover:text-primary transition-colors" 
             onClick={() => setStep('start')}
-            className="group flex items-center gap-2"
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-              <Sparkles className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold gradient-text hidden sm:inline">
-              StreamPick AI
-            </span>
-          </button>
-          
-          <div className="flex items-center gap-3">
+            StreamPick
+          </h1>
+          <div className="flex items-center gap-4">
             {session ? (
               <>
-                <span className="text-sm text-muted-foreground hidden md:inline px-3 py-1.5 rounded-full bg-secondary/50">
+                <span className="text-sm text-muted-foreground hidden sm:inline">
                   {session.user.email}
                 </span>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleSignOut}
-                  className="gap-2 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50 transition-all"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span className="hidden sm:inline">Sign Out</span>
+                <Button variant="outline" size="sm" onClick={handleSignOut}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
                 </Button>
               </>
             ) : (
-              <Button 
-                variant="gradient" 
-                size="sm" 
-                onClick={() => navigate("/auth")}
-                className="gap-2"
-              >
-                <Star className="h-4 w-4" />
+              <Button variant="default" size="sm" onClick={() => navigate("/auth")}>
                 Sign In
               </Button>
             )}
@@ -348,136 +319,67 @@ const Index = () => {
       {/* Hero Section */}
       {step === "start" && (
         <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
-          {/* Hero background image with overlay */}
           <div 
-            className="absolute inset-0 opacity-20"
+            className="absolute inset-0 opacity-30"
             style={{
               backgroundImage: `url(${heroBg})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
-              animation: 'slow-pan 30s ease-in-out infinite alternate',
             }}
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/60 to-background" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/60" />
           
-          {/* Floating icons */}
-          {floatingIcons.map(({ Icon, delay, x, y }, i) => (
-            <div
-              key={i}
-              className="absolute text-primary/20 animate-float pointer-events-none"
-              style={{
-                left: x,
-                top: y,
-                animationDelay: `${delay}s`,
-                animationDuration: `${6 + i}s`,
-              }}
-            >
-              <Icon size={32 + i * 4} />
-            </div>
-          ))}
-          
-          <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
-            {/* Main content */}
-            <div className="space-y-8 animate-fade-in-up">
-              {/* Welcome badge */}
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass border border-primary/30">
-                <Sparkles className="w-4 h-4 text-primary animate-pulse" />
-                <span className="text-sm font-medium">AI-Powered Recommendations</span>
-              </div>
-              
-              {/* Main heading */}
-              <div className="space-y-4">
-                <h1 className="text-6xl md:text-8xl font-bold">
-                  <span className="gradient-text-shimmer">{welcomeMessages[welcomeIndex]}</span>
-                </h1>
-                <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-                  Stop scrolling endlessly. Get personalized recommendations based on your 
-                  <span className="text-primary font-medium"> mood</span>, 
-                  <span className="text-accent font-medium"> preferences</span>, and 
-                  <span className="text-primary font-medium"> viewing history</span>.
-                </p>
-              </div>
-              
-              {/* CTA buttons */}
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-                <Button 
-                  size="lg" 
-                  variant="gradient"
-                  className="text-lg px-10 py-7 rounded-2xl animate-pulse-glow hover:scale-105 transition-transform"
-                  onClick={() => setStep("input")}
-                >
-                  <Play className="mr-2 h-5 w-5" />
-                  Get Started
-                </Button>
-                
-                {!session && (
-                  <Button 
-                    variant="outline" 
-                    size="lg"
-                    className="text-lg px-8 py-7 rounded-2xl hover:bg-primary/10 hover:border-primary/50 transition-all"
+          <div className="relative z-10 text-center px-4 max-w-3xl mx-auto space-y-8">
+            <div className="space-y-4">
+              <h1 className="text-5xl md:text-7xl font-bold text-foreground">
+                {welcomeMessages[welcomeIndex]}
+              </h1>
+              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                Stop scrolling endlessly. Get AI-powered recommendations based on your mood, preferences, and viewing history.
+              </p>
+              {!session && (
+                <p className="text-sm text-muted-foreground">
+                  <button 
                     onClick={() => navigate("/auth")}
+                    className="text-primary hover:underline"
                   >
-                    Sign in for more features
-                  </Button>
-                )}
-              </div>
-              
-              {/* Feature highlights */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-12 max-w-2xl mx-auto">
-                {[
-                  { icon: Star, label: "Rate Shows", desc: "Track your favorites" },
-                  { icon: Film, label: "Smart AI", desc: "Learns your taste" },
-                  { icon: Tv, label: "Save Lists", desc: "Never forget a show" },
-                ].map(({ icon: FeatureIcon, label, desc }, i) => (
-                  <div 
-                    key={label}
-                    className="group p-4 rounded-2xl glass hover:bg-card/80 transition-all duration-300 hover:scale-105 cursor-default"
-                    style={{ animationDelay: `${i * 0.1}s` }}
-                  >
-                    <FeatureIcon className="w-8 h-8 text-primary mb-2 mx-auto group-hover:scale-110 transition-transform" />
-                    <p className="font-semibold">{label}</p>
-                    <p className="text-sm text-muted-foreground">{desc}</p>
-                  </div>
-                ))}
-              </div>
+                    Sign in for free
+                  </button>
+                  {" "}to save shows & unlock more features
+                </p>
+              )}
             </div>
-          </div>
-          
-          {/* Scroll indicator */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce-soft">
-            <div className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex items-start justify-center p-2">
-              <div className="w-1 h-2 bg-muted-foreground/50 rounded-full animate-pulse" />
-            </div>
+            <Button 
+              size="lg" 
+              className="text-lg px-8 py-6"
+              onClick={() => setStep("input")}
+            >
+              Get Started
+            </Button>
           </div>
         </div>
       )}
 
       {/* Input Section */}
       {step === "input" && (
-        <div className="container mx-auto px-4 py-12 max-w-4xl space-y-8 pt-28 animate-fade-in">
-          <div className="text-center space-y-4 mb-12">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass border border-primary/30 mb-4">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <span className="text-sm">Personalization Mode</span>
-            </div>
-            <h2 className="text-4xl md:text-5xl font-bold gradient-text">
-              Let's Find Your Perfect Watch
-            </h2>
-            <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-              Answer a few questions to get AI-powered recommendations tailored just for you
-            </p>
+        <div className="container mx-auto px-4 py-12 max-w-4xl space-y-8 pt-24">
+          <div className="text-center space-y-2 mb-8">
+            <h2 className="text-3xl md:text-4xl font-bold">Let's Find Your Perfect Watch</h2>
+            <p className="text-muted-foreground">Answer a few questions to get personalized recommendations</p>
             
             {!session && (
-              <button 
-                onClick={() => navigate("/auth")}
-                className="inline-flex items-center gap-2 mt-4 px-5 py-2.5 rounded-full glass border border-primary/30 text-sm hover:bg-primary/10 transition-colors group"
-              >
-                <Star className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
-                <span>
-                  <span className="text-primary font-medium">Sign in</span>
-                  <span className="text-muted-foreground"> to save shows & rate recommendations</span>
+              <div className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-secondary text-sm">
+                <Star className="h-4 w-4 text-primary" />
+                <span className="text-muted-foreground">
+                  <button 
+                    onClick={() => navigate("/auth")}
+                    className="text-primary hover:underline font-medium"
+                  >
+                    Sign in
+                  </button>
+                  {" "}to save shows & rate recommendations
                 </span>
-              </button>
+              </div>
             )}
           </div>
 
@@ -495,18 +397,17 @@ const Index = () => {
                   onRemoveShow={removeShow}
                 />
                 
-                <div className="flex justify-center pt-8">
+                <div className="flex justify-center pt-4">
                   <Button 
                     size="lg"
-                    variant="gradient"
                     onClick={handleGetRecommendations}
                     disabled={loading}
-                    className="text-lg px-10 py-7 rounded-2xl hover:scale-105 transition-transform animate-pulse-glow"
+                    className="text-lg px-8"
                   >
                     {loading ? (
                       <>
                         <RefreshCw className="mr-2 h-5 w-5 animate-spin" />
-                        Finding perfect matches...
+                        Finding matches...
                       </>
                     ) : (
                       <>
@@ -524,18 +425,10 @@ const Index = () => {
 
       {/* Results Section */}
       {step === "results" && (
-        <div className="container mx-auto px-4 py-12 max-w-7xl space-y-8 pt-28 animate-fade-in">
-          <div className="text-center space-y-4 mb-12">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass border border-accent/30 mb-4">
-              <Sparkles className="w-4 h-4 text-accent" />
-              <span className="text-sm">Your Results</span>
-            </div>
-            <h2 className="text-4xl md:text-5xl font-bold gradient-text">
-              Your Personalized Picks
-            </h2>
-            <p className="text-muted-foreground text-lg">
-              Based on your mood, preferences, and viewing history
-            </p>
+        <div className="container mx-auto px-4 py-12 max-w-6xl space-y-8 pt-24">
+          <div className="text-center space-y-4">
+            <h2 className="text-3xl md:text-4xl font-bold">Your Personalized Recommendations</h2>
+            <p className="text-muted-foreground">Based on your preferences and viewing history</p>
             <Button 
               variant="outline" 
               onClick={() => {
@@ -547,27 +440,20 @@ const Index = () => {
                 setStep("input");
                 setPreferences(null);
               }}
-              className="mt-4 gap-2 hover:bg-primary/10 hover:border-primary/50"
             >
-              <RefreshCw className="h-4 w-4" />
               Start Over
             </Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {recommendations.map((rec, index) => (
-              <div
-                key={rec.id || index}
-                className="animate-fade-in-up"
-                style={{ animationDelay: `${index * 0.1}s` }}
-              >
-                <RecommendationCard 
-                  recommendation={rec}
-                  onRate={session?.user?.id ? handleRateRecommendation : undefined}
-                  onWatchedStatus={session?.user?.id ? handleWatchedStatus : undefined}
-                  isRepeat={rec.isRepeat || false}
-                />
-              </div>
+              <RecommendationCard 
+                key={rec.id || index} 
+                recommendation={rec}
+                onRate={session?.user?.id ? handleRateRecommendation : undefined}
+                onWatchedStatus={session?.user?.id ? handleWatchedStatus : undefined}
+                isRepeat={rec.isRepeat || false}
+              />
             ))}
           </div>
         </div>

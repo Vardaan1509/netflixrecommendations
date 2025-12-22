@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Loader2, Sparkles } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { ChevronLeft, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -147,191 +148,124 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
     ? conversationHistory.length 
     : conversationHistory.length + 1;
 
-  const getConfidenceLabel = () => {
-    if (confidence >= 90) return { text: "Almost ready!", color: "text-green-400" };
-    if (confidence >= 70) return { text: "Getting close...", color: "text-accent" };
-    if (confidence >= 50) return { text: "Learning more...", color: "text-primary" };
-    return { text: "Just getting started", color: "text-muted-foreground" };
-  };
-
-  const confidenceLabel = getConfidenceLabel();
-
   return (
-    <div className="max-w-3xl mx-auto">
-      {/* Main card */}
-      <div className="relative">
-        {/* Glow effect */}
-        <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 via-accent/20 to-primary/20 rounded-3xl blur-xl opacity-50" />
-        
-        <div className="relative glass-strong rounded-2xl p-8 space-y-8 hover-lift">
-          {/* Progress section */}
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-sm font-bold text-primary-foreground">
-                  {questionNumber}
-                </div>
-                <span className="text-sm text-muted-foreground">Question {questionNumber}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Sparkles className={`w-4 h-4 ${confidenceLabel.color}`} />
-                <span className={`text-sm font-medium ${confidenceLabel.color}`}>
-                  {confidenceLabel.text}
-                </span>
-              </div>
-            </div>
-            
-            {/* Progress bar */}
-            <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-              <div 
-                className={`h-full rounded-full transition-all duration-700 ease-out ${
-                  confidence >= 90 
-                    ? 'bg-gradient-to-r from-green-500 to-green-400' 
-                    : 'bg-gradient-to-r from-primary to-accent'
-                }`}
-                style={{ width: `${confidence}%` }}
-              />
-            </div>
+    <Card className="bg-card border-border">
+      <CardContent className="p-6 space-y-6">
+        {/* Progress */}
+        <div className="space-y-2">
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-muted-foreground">Question {questionNumber}</span>
+            <span className="text-muted-foreground">
+              {confidence >= 90 ? "Almost ready!" : confidence >= 60 ? "Getting there..." : "Learning your preferences"}
+            </span>
           </div>
-          
-          {/* Question */}
-          <div className="space-y-2">
-            <h3 className="text-2xl md:text-3xl font-bold leading-tight">
-              {currentQuestion.question}
-            </h3>
-            {currentQuestion.type === "checkbox" && (
-              <p className="text-sm text-muted-foreground">Select all that apply</p>
-            )}
-          </div>
-          
-          {/* Options */}
-          {currentQuestion.type === "radio" ? (
-            <div className="grid gap-3">
-              {currentQuestion.options.map((option, idx) => {
-                const isSelected = currentAnswer === option;
-                return (
-                  <button
-                    key={option}
-                    onClick={() => handleAnswerChange(option)}
-                    className={`
-                      group relative p-4 rounded-xl text-left transition-all duration-300
-                      border-2 hover:scale-[1.02] active:scale-[0.98]
-                      ${isSelected 
-                        ? 'border-primary bg-primary/10 shadow-lg shadow-primary/20' 
-                        : 'border-border/50 bg-card/30 hover:border-primary/50 hover:bg-card/50'
-                      }
-                    `}
-                    style={{ animationDelay: `${idx * 0.05}s` }}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`
-                        w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all
-                        ${isSelected 
-                          ? 'border-primary bg-primary' 
-                          : 'border-muted-foreground/30 group-hover:border-primary/50'
-                        }
-                      `}>
-                        {isSelected && (
-                          <div className="w-2 h-2 rounded-full bg-primary-foreground animate-scale-in" />
-                        )}
-                      </div>
-                      <span className={`text-base ${isSelected ? 'text-foreground font-medium' : 'text-foreground/80'}`}>
-                        {option}
-                      </span>
-                    </div>
-                    
-                    {/* Selected indicator line */}
-                    {isSelected && (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-primary to-accent rounded-full" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-2 gap-3">
-              {currentQuestion.options.map((option, idx) => {
-                const isChecked = Array.isArray(currentAnswer) && currentAnswer.includes(option);
-                return (
-                  <button
-                    key={option}
-                    onClick={() => {
-                      if (Array.isArray(currentAnswer)) {
-                        handleAnswerChange(
-                          isChecked 
-                            ? currentAnswer.filter(item => item !== option)
-                            : [...currentAnswer, option]
-                        );
-                      }
-                    }}
-                    className={`
-                      group relative p-4 rounded-xl text-left transition-all duration-300
-                      border-2 hover:scale-[1.02] active:scale-[0.98]
-                      ${isChecked 
-                        ? 'border-primary bg-primary/10 shadow-lg shadow-primary/20' 
-                        : 'border-border/50 bg-card/30 hover:border-primary/50 hover:bg-card/50'
-                      }
-                    `}
-                    style={{ animationDelay: `${idx * 0.05}s` }}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`
-                        w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all
-                        ${isChecked 
-                          ? 'border-primary bg-primary' 
-                          : 'border-muted-foreground/30 group-hover:border-primary/50'
-                        }
-                      `}>
-                        {isChecked && (
-                          <svg className="w-4 h-4 text-primary-foreground animate-scale-in" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                      <span className={`text-base ${isChecked ? 'text-foreground font-medium' : 'text-foreground/80'}`}>
-                        {option}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Navigation */}
-          <div className="flex items-center justify-between pt-6 border-t border-border/30">
-            <Button
-              variant="ghost"
-              onClick={handleBack}
-              disabled={conversationHistory.length === 0 || isLoading}
-              className="gap-2 hover:bg-secondary/50"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Back
-            </Button>
-            
-            <Button
-              variant="gradient"
-              onClick={handleNext}
-              disabled={!canProceed() || isLoading}
-              className="min-w-36 gap-2 rounded-xl"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  Continue
-                  <span className="text-lg">→</span>
-                </>
-              )}
-            </Button>
+          <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+            <div 
+              className={`h-full rounded-full transition-all duration-500 ${
+                confidence >= 90 ? 'bg-green-500' : 'bg-primary'
+              }`}
+              style={{ width: `${confidence}%` }}
+            />
           </div>
         </div>
-      </div>
-    </div>
+        
+        {/* Question */}
+        <h3 className="text-xl font-semibold">{currentQuestion.question}</h3>
+        
+        {/* Options */}
+        {currentQuestion.type === "radio" ? (
+          <div className="space-y-2">
+            {currentQuestion.options.map(option => {
+              const isSelected = currentAnswer === option;
+              return (
+                <button
+                  key={option}
+                  onClick={() => handleAnswerChange(option)}
+                  className={`w-full p-4 rounded-lg text-left transition-colors border ${
+                    isSelected 
+                      ? 'border-primary bg-primary/10' 
+                      : 'border-border bg-secondary/50 hover:bg-secondary'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                      isSelected ? 'border-primary' : 'border-muted-foreground'
+                    }`}>
+                      {isSelected && <div className="w-2 h-2 rounded-full bg-primary" />}
+                    </div>
+                    <span className="text-sm">{option}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-2">
+            {currentQuestion.options.map(option => {
+              const isChecked = Array.isArray(currentAnswer) && currentAnswer.includes(option);
+              return (
+                <button
+                  key={option}
+                  onClick={() => {
+                    if (Array.isArray(currentAnswer)) {
+                      handleAnswerChange(
+                        isChecked 
+                          ? currentAnswer.filter(item => item !== option)
+                          : [...currentAnswer, option]
+                      );
+                    }
+                  }}
+                  className={`p-4 rounded-lg text-left transition-colors border ${
+                    isChecked 
+                      ? 'border-primary bg-primary/10' 
+                      : 'border-border bg-secondary/50 hover:bg-secondary'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                      isChecked ? 'border-primary bg-primary' : 'border-muted-foreground'
+                    }`}>
+                      {isChecked && (
+                        <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                    <span className="text-sm">{option}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Navigation */}
+        <div className="flex items-center justify-between pt-4 border-t border-border">
+          <Button
+            variant="ghost"
+            onClick={handleBack}
+            disabled={conversationHistory.length === 0 || isLoading}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+          
+          <Button
+            onClick={handleNext}
+            disabled={!canProceed() || isLoading}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Thinking...
+              </>
+            ) : (
+              "Continue"
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 
