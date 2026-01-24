@@ -44,23 +44,20 @@ Feedback Loop: Users can rate recommendations, which the system uses to iterate 
 Persistence: User data and preferences are managed via a scalable Supabase backend.
 
 # ⚙️ Installation & Setup
-Clone the repository:
+Clone the repository ```bash git clone https://github.com/Vardaan1509/netflixrecommendations.git cd netflixrecommendations
 
-Bash
-git clone https://github.com/Vardaan1509/netflixrecommendations.git
-cd netflixrecommendations
-Install dependencies:
 
-Bash
-npm install
-Environment Variables: Create a .env file in the root directory and add your Supabase credentials:
+Install dependencies ```bash npm install
 
-Code snippet
+
+Run the application ```bash npm run dev
+# 🔑 Environment Variables
+
+To run this project, you will need to add the following environment variables to your `.env` file in the root directory:
+
+```env
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-Run the application:
 
-Bash
-npm run dev
 # 🌟 About the Developer
 Developed by Vardaan Mehandiratta, a Computer Engineering student at the University of Waterloo. This project showcases expertise in full-stack development, AI integration, and user-centric design.
