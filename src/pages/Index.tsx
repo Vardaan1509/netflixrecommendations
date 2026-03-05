@@ -8,8 +8,10 @@ import Questionnaire from "@/components/Questionnaire";
 import WatchedShows from "@/components/WatchedShows";
 import RegionSelector from "@/components/RegionSelector";
 import RecommendationCard from "@/components/RecommendationCard";
+import BackboardChat from "@/components/BackboardChat";
 import { useWatchedShows } from "@/hooks/useWatchedShows";
-import { Sparkles, RefreshCw, LogOut, Star } from "lucide-react";
+import { useBackboard } from "@/hooks/useBackboard";
+import { Sparkles, RefreshCw, LogOut, Star, Brain, MessageSquare, ClipboardList } from "lucide-react";
 import heroBg from "@/assets/netflix-bg.png";
 
 interface Preferences {
@@ -50,6 +52,7 @@ const Index = () => {
   const [loading, setLoading] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [welcomeIndex, setWelcomeIndex] = useState(0);
+  const [recommendMode, setRecommendMode] = useState<"questionnaire" | "backboard">("backboard");
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -65,7 +68,7 @@ const Index = () => {
   useEffect(() => {
     sessionStorage.setItem('questionnaire-region', region);
   }, [region]);
-  
+
   const welcomeMessages = [
     "Welcome", // English
     "Bienvenido", // Spanish
@@ -80,8 +83,9 @@ const Index = () => {
     "مرحبا", // Arabic
     "Добро пожаловать", // Russian
   ];
-  
+
   const { shows, loading: showsLoading, addShow, removeShow } = useWatchedShows(session?.user?.id);
+  const backboard = useBackboard(session);
 
   useEffect(() => {
     // Set up auth state listener
@@ -130,7 +134,7 @@ const Index = () => {
           .from('recommendations')
           .select('title')
           .eq('user_id', session.user.id);
-        
+
         if (prevRecs) {
           previousTitles = prevRecs.map(r => r.title.toLowerCase());
         }
@@ -210,13 +214,10 @@ const Index = () => {
       if (error) throw error;
 
       // STEP 2: Generate embedding for high ratings (4-5 stars)
-      // This builds the user's personalized similarity database
       if (rating >= 4) {
         const recommendation = recommendations.find(r => r.id === recommendationId);
         if (recommendation) {
           console.log('Generating embedding for highly rated show:', recommendation.title);
-          
-          // Call the generate-embedding function asynchronously (don't block UI)
           supabase.functions
             .invoke('generate-embedding', {
               body: {
@@ -235,9 +236,19 @@ const Index = () => {
         }
       }
 
+      // Send feedback to Backboard memory loop
+      const recommendation = recommendations.find(r => r.id === recommendationId);
+      if (recommendation) {
+        backboard.sendFeedback({
+          feedbackType: 'rating',
+          title: recommendation.title,
+          rating,
+        });
+      }
+
       toast({
-        title: "Thanks for rating!",
-        description: "Your feedback helps improve future recommendations.",
+        title: "Thanks for rating! 🧠",
+        description: "Your feedback is stored in memory for future recommendations.",
         duration: 2000,
       });
     } catch (error) {
@@ -256,7 +267,7 @@ const Index = () => {
 
     try {
       const updateData: any = { watched };
-      
+
       // If they said they didn't like it, set rating to 1
       // If they liked it, keep the existing rating
       if (liked === false) {
@@ -272,15 +283,15 @@ const Index = () => {
 
       toast({
         title: "Got it!",
-        description: watched 
+        description: watched
           ? "Thanks for the feedback! We'll use this to improve your recommendations."
           : "We'll keep that in mind for future suggestions.",
         duration: 2000,
       });
 
       // Update local state
-      setRecommendations(prev => prev.map(rec => 
-        rec.id === recommendationId 
+      setRecommendations(prev => prev.map(rec =>
+        rec.id === recommendationId
           ? { ...rec, user_rating: updateData.user_rating ?? rec.user_rating }
           : rec
       ));
@@ -303,8 +314,8 @@ const Index = () => {
       {/* Header with Auth */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border/50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 
-            className="text-xl font-bold cursor-pointer hover:opacity-80 transition-opacity" 
+          <h1
+            className="text-xl font-bold cursor-pointer hover:opacity-80 transition-opacity"
             onClick={() => setStep('start')}
           >
             Smart Netflix Recommendations
@@ -333,7 +344,7 @@ const Index = () => {
       {step === "start" && (
         <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-red-900/20 via-black to-black animate-gradient-shift" />
-          <div 
+          <div
             className="absolute inset-0 opacity-30"
             style={{
               backgroundImage: `url(${heroBg})`,
@@ -353,7 +364,7 @@ const Index = () => {
               </p>
               {!session && (
                 <p className="text-sm text-muted-foreground">
-                  <button 
+                  <button
                     onClick={() => navigate("/auth")}
                     className="text-primary hover:underline"
                   >
@@ -363,8 +374,8 @@ const Index = () => {
                 </p>
               )}
             </div>
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               variant="gradient"
               className="text-lg px-8 py-6"
               onClick={() => setStep("input")}
@@ -380,60 +391,103 @@ const Index = () => {
         <div className="container mx-auto px-4 py-12 max-w-4xl space-y-8 pt-24">
           <div className="text-center space-y-2 mb-8">
             <h2 className="text-3xl md:text-4xl font-bold">Let's Find Your Perfect Watch</h2>
-            <p className="text-muted-foreground">Answer a few questions to get personalized recommendations</p>
-            
+            <p className="text-muted-foreground">Answer a few questions or chat with your memory-powered assistant</p>
+
             {/* Inline sign-in reminder */}
             {!session && (
               <div className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-sm">
                 <Star className="h-4 w-4 text-yellow-500" />
                 <span className="text-muted-foreground">
-                  <button 
+                  <button
                     onClick={() => navigate("/auth")}
                     className="text-primary hover:underline font-medium"
                   >
                     Sign in
                   </button>
-                  {" "}to save shows & rate recommendations
+                  {" "}to save shows & unlock memory-powered recommendations
                 </span>
               </div>
             )}
           </div>
 
+          {/* Mode Switcher — only for signed-in users */}
+          {session && (
+            <div className="flex justify-center">
+              <div className="inline-flex rounded-xl border border-border/50 bg-card/50 backdrop-blur p-1 gap-1">
+                <button
+                  onClick={() => setRecommendMode("backboard")}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${recommendMode === "backboard"
+                      ? "bg-purple-500/20 text-purple-300 border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.15)]"
+                      : "text-muted-foreground hover:text-foreground hover:bg-card/80"
+                    }`}
+                >
+                  <Brain className="h-4 w-4" />
+                  Ask Your Assistant
+                </button>
+                <button
+                  onClick={() => setRecommendMode("questionnaire")}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${recommendMode === "questionnaire"
+                      ? "bg-primary/20 text-primary border border-primary/30"
+                      : "text-muted-foreground hover:text-foreground hover:bg-card/80"
+                    }`}
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  Questionnaire
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-6">
-            <RegionSelector region={region} onRegionChange={setRegion} />
-            
-            {!preferences ? (
-              <Questionnaire onComplete={handleQuestionnaireComplete} />
-            ) : (
+            {/* Backboard Chat Mode */}
+            {session && recommendMode === "backboard" ? (
               <>
-                <WatchedShows 
-                  shows={shows} 
-                  loading={showsLoading}
-                  onAddShow={addShow}
-                  onRemoveShow={removeShow}
+                <RegionSelector region={region} onRegionChange={setRegion} />
+                <BackboardChat
+                  session={session}
+                  watchedShows={shows}
+                  region={region}
                 />
-                
-                <div className="flex justify-center pt-4">
-                  <Button 
-                    size="lg"
-                    variant="gradient"
-                    onClick={handleGetRecommendations}
-                    disabled={loading}
-                    className="text-lg px-8"
-                  >
-                    {loading ? (
-                      <>
-                        <RefreshCw className="mr-2 h-5 w-5 animate-spin" />
-                        Finding matches...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="mr-2 h-5 w-5" />
-                        Get My Recommendations
-                      </>
-                    )}
-                  </Button>
-                </div>
+              </>
+            ) : (
+              /* Questionnaire Mode (original flow) */
+              <>
+                <RegionSelector region={region} onRegionChange={setRegion} />
+
+                {!preferences ? (
+                  <Questionnaire onComplete={handleQuestionnaireComplete} />
+                ) : (
+                  <>
+                    <WatchedShows
+                      shows={shows}
+                      loading={showsLoading}
+                      onAddShow={addShow}
+                      onRemoveShow={removeShow}
+                    />
+
+                    <div className="flex justify-center pt-4">
+                      <Button
+                        size="lg"
+                        variant="gradient"
+                        onClick={handleGetRecommendations}
+                        disabled={loading}
+                        className="text-lg px-8"
+                      >
+                        {loading ? (
+                          <>
+                            <RefreshCw className="mr-2 h-5 w-5 animate-spin" />
+                            Finding matches...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="mr-2 h-5 w-5" />
+                            Get My Recommendations
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -446,8 +500,8 @@ const Index = () => {
           <div className="text-center space-y-4">
             <h2 className="text-3xl md:text-4xl font-bold">Your Personalized Recommendations</h2>
             <p className="text-muted-foreground">Based on your preferences and viewing history</p>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 // Clear all questionnaire state
                 sessionStorage.removeItem('questionnaire-history');
@@ -465,8 +519,8 @@ const Index = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {recommendations.map((rec, index) => (
-              <RecommendationCard 
-                key={rec.id || index} 
+              <RecommendationCard
+                key={rec.id || index}
                 recommendation={rec}
                 onRate={session?.user?.id ? handleRateRecommendation : undefined}
                 onWatchedStatus={session?.user?.id ? handleWatchedStatus : undefined}
