@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const BACKBOARD_BASE_URL = 'https://backboard.io/api';
+const BACKBOARD_BASE_URL = 'https://app.backboard.io/api';
 
 /**
  * Backboard-powered recommendation Edge Function
@@ -76,10 +76,10 @@ serve(async (req) => {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${BACKBOARD_API_KEY}`,
+            'X-API-Key': BACKBOARD_API_KEY,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ name: `user-${user.id}` }),
+          body: JSON.stringify({}),
         }
       );
 
@@ -134,11 +134,11 @@ serve(async (req) => {
 
     // Send message to Backboard with persistent memory
     const backboardRes = await fetch(
-      `${BACKBOARD_BASE_URL}/assistants/${BACKBOARD_ASSISTANT_ID}/threads/${threadId}/messages`,
+      `${BACKBOARD_BASE_URL}/threads/${threadId}/messages`,
       {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${BACKBOARD_API_KEY}`,
+          'X-API-Key': BACKBOARD_API_KEY,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
