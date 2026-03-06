@@ -116,30 +116,27 @@ serve(async (req) => {
 
     console.log('Sending message to Backboard thread:', threadId);
 
-    // Send message to Backboard with persistent memory
-    const backboardRes = await fetch(
-      `${BACKBOARD_BASE_URL}/threads/${threadId}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          'X-API-Key': BACKBOARD_API_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          content: userMessage,
-          memory: 'Auto', // Backboard reads AND writes to persistent memory
-        }),
+    let backboardData = await sendBackboardMessage(BACKBOARD_API_KEY, threadId!, userMessage);
+    let assistantReply = extractAssistantReply(backboardData);
+
+    if (isBackboardPromptError(assistantReply)) {
+      console.warn('Backboard thread returned prompt-template error. Recreating thread and retrying once.');
+
+      const freshThreadId = await createBackboardThread(BACKBOARD_API_KEY, resolvedAssistantId);
+      threadId = freshThreadId;
+
+      const { error: threadUpdateError } = await supabaseClient
+        .from('profiles')
+        .update({ backboard_thread_id: freshThreadId })
+        .eq('user_id', user.id);
+
+      if (threadUpdateError) {
+        console.error('Failed to save recreated thread ID:', threadUpdateError);
       }
-    );
 
-    if (!backboardRes.ok) {
-      const errText = await backboardRes.text();
-      console.error('Backboard API error:', backboardRes.status, errText);
-      throw new Error(`Backboard API error: ${backboardRes.status}`);
+      backboardData = await sendBackboardMessage(BACKBOARD_API_KEY, freshThreadId, userMessage);
+      assistantReply = extractAssistantReply(backboardData);
     }
-
-    const backboardData = await backboardRes.json();
-    const assistantReply = backboardData.content || backboardData.message || backboardData.response || '';
 
     console.log('Backboard response received, parsing recommendations');
 
