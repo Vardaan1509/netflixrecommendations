@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       profiles: {
         Row: {
+          backboard_thread_id: string | null
           created_at: string
           display_name: string | null
           id: string
@@ -23,6 +24,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          backboard_thread_id?: string | null
           created_at?: string
           display_name?: string | null
           id?: string
@@ -30,6 +32,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          backboard_thread_id?: string | null
           created_at?: string
           display_name?: string | null
           id?: string
