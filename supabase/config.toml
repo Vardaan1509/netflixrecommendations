@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.generate-embedding]
 verify_jwt = true
+
+[functions.backboard-recommend]
+verify_jwt = false
+
+[functions.backboard-feedback]
+verify_jwt = false
