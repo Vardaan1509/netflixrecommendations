@@ -74,26 +74,7 @@ serve(async (req) => {
     // Create a thread if one doesn't exist
     if (!threadId) {
       console.log('Creating new Backboard thread for user:', user.id);
-      const createThreadRes = await fetch(
-        `${BACKBOARD_BASE_URL}/assistants/${resolvedAssistantId}/threads`,
-        {
-          method: 'POST',
-          headers: {
-            'X-API-Key': BACKBOARD_API_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({}),
-        }
-      );
-
-      if (!createThreadRes.ok) {
-        const errText = await createThreadRes.text();
-        console.error('Failed to create Backboard thread:', createThreadRes.status, errText);
-        throw new Error(`Failed to create Backboard thread: ${createThreadRes.status}`);
-      }
-
-      const threadData = await createThreadRes.json();
-      threadId = threadData.thread_id || threadData.id;
+      threadId = await createBackboardThread(BACKBOARD_API_KEY, resolvedAssistantId);
       console.log('Created Backboard thread:', threadId);
 
       // Persist thread ID in user profile
