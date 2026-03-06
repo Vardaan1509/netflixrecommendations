@@ -138,7 +138,7 @@ serve(async (req) => {
       {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${BACKBOARD_API_KEY}`,
+          'X-API-Key': BACKBOARD_API_KEY,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
