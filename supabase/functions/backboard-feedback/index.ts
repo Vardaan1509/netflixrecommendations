@@ -7,7 +7,7 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const BACKBOARD_BASE_URL = 'https://backboard.io/api';
+const BACKBOARD_BASE_URL = 'https://app.backboard.io/api';
 
 /**
  * Backboard Feedback Edge Function
