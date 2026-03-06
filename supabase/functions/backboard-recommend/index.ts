@@ -240,6 +240,64 @@ async function resolveAssistantId(
   return createdAssistantId;
 }
 
+async function createBackboardThread(apiKey: string, assistantId: string): Promise<string> {
+  const createThreadRes = await fetch(`${BACKBOARD_BASE_URL}/assistants/${assistantId}/threads`, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({}),
+  });
+
+  if (!createThreadRes.ok) {
+    const errText = await createThreadRes.text();
+    console.error('Failed to create Backboard thread:', createThreadRes.status, errText);
+    throw new Error(`Failed to create Backboard thread: ${createThreadRes.status}`);
+  }
+
+  const threadData = await createThreadRes.json();
+  const threadId = threadData?.thread_id || threadData?.id;
+  if (!threadId) {
+    throw new Error('Backboard thread creation succeeded but returned no thread_id.');
+  }
+
+  return threadId;
+}
+
+async function sendBackboardMessage(apiKey: string, threadId: string, userMessage: string) {
+  const backboardRes = await fetch(`${BACKBOARD_BASE_URL}/threads/${threadId}/messages`, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      content: userMessage,
+      memory: 'Auto',
+    }),
+  });
+
+  if (!backboardRes.ok) {
+    const errText = await backboardRes.text();
+    console.error('Backboard API error:', backboardRes.status, errText);
+    throw new Error(`Backboard API error: ${backboardRes.status}`);
+  }
+
+  return backboardRes.json();
+}
+
+function extractAssistantReply(backboardData: any): string {
+  return backboardData?.content || backboardData?.message || backboardData?.response || '';
+}
+
+function isBackboardPromptError(reply: string): boolean {
+  return (
+    reply.includes('Input to ChatPromptTemplate is missing variables') ||
+    reply.includes('LLM Invocation Error')
+  );
+}
+
 function buildPreferencesMessage(
   preferences: any,
   watchedShows: string[] = [],
