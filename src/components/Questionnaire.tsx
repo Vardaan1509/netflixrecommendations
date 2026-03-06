@@ -200,8 +200,8 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
                     key={option}
                     onClick={() => handleAnswerChange(option)}
                     className={`
-                      relative p-4 rounded-xl text-left transition-all duration-200
-                      border-2 hover:scale-[1.02] active:scale-[0.98]
+                      relative p-4 rounded-xl text-left transition-colors duration-200
+                      border-2
                       ${isSelected 
                         ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
                         : 'border-border/50 bg-card/50 hover:border-primary/50 hover:bg-card/80'
@@ -242,8 +242,8 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
                       }
                     }}
                     className={`
-                      relative p-4 rounded-xl text-left transition-all duration-200
-                      border-2 hover:scale-[1.02] active:scale-[0.98]
+                      relative p-4 rounded-xl text-left transition-colors duration-200
+                      border-2
                       ${isChecked 
                         ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
                         : 'border-border/50 bg-card/50 hover:border-primary/50 hover:bg-card/80'
