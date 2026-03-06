@@ -189,7 +189,22 @@ interface BackboardAssistant {
   name?: string;
 }
 
-const DEFAULT_ASSISTANT_SYSTEM_PROMPT = `You are a Netflix recommendation assistant with persistent memory. Return valid JSON with a recommendations array and optional memoryNote. Each recommendation must include title, type, genre, description, matchReason, and rating. Avoid titles the user already watched or disliked.`;
+const MANAGED_ASSISTANT_NAME = 'Netflix Recommendation Engine Managed';
+const DEFAULT_ASSISTANT_SYSTEM_PROMPT = `You are a Netflix recommendation assistant with persistent memory.
+
+Always return valid JSON with:
+- recommendations: array of 3-5 items
+- memoryNote: optional short string
+
+Each recommendation object must include exactly these keys:
+- title
+- type
+- genre
+- description
+- matchReason
+- rating
+
+Never suggest titles the user has already watched or disliked.`;
 
 async function resolveAssistantId(
   apiKey: string,
@@ -213,9 +228,9 @@ async function resolveAssistantId(
     return configuredAssistantId;
   }
 
-  if (assistants.length > 0) {
-    console.warn('Configured assistant not found. Falling back to first available assistant.');
-    return assistants[0].assistant_id;
+  const managedAssistant = assistants.find((a) => a.name === MANAGED_ASSISTANT_NAME);
+  if (managedAssistant?.assistant_id) {
+    return managedAssistant.assistant_id;
   }
 
   const createAssistantRes = await fetch(`${BACKBOARD_BASE_URL}/assistants`, {
@@ -225,7 +240,7 @@ async function resolveAssistantId(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      name: 'Netflix Recommendation Engine',
+      name: MANAGED_ASSISTANT_NAME,
       system_prompt: DEFAULT_ASSISTANT_SYSTEM_PROMPT,
       description: 'Personalized Netflix recommendations with memory',
     }),
@@ -243,7 +258,7 @@ async function resolveAssistantId(
     throw new Error('Backboard assistant creation succeeded but returned no assistant_id.');
   }
 
-  console.log('Created new Backboard assistant:', createdAssistantId);
+  console.log('Created managed Backboard assistant:', createdAssistantId);
   return createdAssistantId;
 }
 
