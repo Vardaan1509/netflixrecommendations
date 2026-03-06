@@ -14,6 +14,3 @@ verify_jwt = false
 
 [functions.backboard-feedback]
 verify_jwt = false
-
-[functions.backboard-debug]
-verify_jwt = false

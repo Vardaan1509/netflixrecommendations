@@ -4,7 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 const BACKBOARD_BASE_URL = 'https://app.backboard.io/api';
@@ -26,14 +26,14 @@ serve(async (req) => {
 
   try {
     const BACKBOARD_API_KEY = Deno.env.get('BACKBOARD_API_KEY')?.trim();
-    const BACKBOARD_ASSISTANT_ID = Deno.env.get('BACKBOARD_ASSISTANT_ID')?.trim() || '4a2628e1-2439-4583-a2da-7dcabb2421bb';
+    const configuredAssistantId = Deno.env.get('BACKBOARD_ASSISTANT_ID')?.trim();
 
-    console.log('Backboard API key prefix:', BACKBOARD_API_KEY?.substring(0, 8));
-    console.log('Backboard Assistant ID:', BACKBOARD_ASSISTANT_ID);
-
-    if (!BACKBOARD_API_KEY || !BACKBOARD_ASSISTANT_ID) {
-      throw new Error('Backboard configuration missing. Set BACKBOARD_API_KEY and BACKBOARD_ASSISTANT_ID.');
+    if (!BACKBOARD_API_KEY) {
+      throw new Error('Backboard configuration missing. Set BACKBOARD_API_KEY.');
     }
+
+    const resolvedAssistantId = await resolveAssistantId(BACKBOARD_API_KEY, configuredAssistantId);
+    console.log('Using Backboard assistant ID:', resolvedAssistantId);
 
     // Authenticate user
     const authHeader = req.headers.get('authorization');
@@ -74,26 +74,7 @@ serve(async (req) => {
     // Create a thread if one doesn't exist
     if (!threadId) {
       console.log('Creating new Backboard thread for user:', user.id);
-      const createThreadRes = await fetch(
-        `${BACKBOARD_BASE_URL}/assistants/${BACKBOARD_ASSISTANT_ID}/threads`,
-        {
-          method: 'POST',
-          headers: {
-            'X-API-Key': BACKBOARD_API_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({}),
-        }
-      );
-
-      if (!createThreadRes.ok) {
-        const errText = await createThreadRes.text();
-        console.error('Failed to create Backboard thread:', createThreadRes.status, errText);
-        throw new Error(`Failed to create Backboard thread: ${createThreadRes.status}`);
-      }
-
-      const threadData = await createThreadRes.json();
-      threadId = threadData.thread_id || threadData.id;
+      threadId = await createBackboardThread(BACKBOARD_API_KEY, resolvedAssistantId);
       console.log('Created Backboard thread:', threadId);
 
       // Persist thread ID in user profile
@@ -135,30 +116,27 @@ serve(async (req) => {
 
     console.log('Sending message to Backboard thread:', threadId);
 
-    // Send message to Backboard with persistent memory
-    const backboardRes = await fetch(
-      `${BACKBOARD_BASE_URL}/threads/${threadId}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          'X-API-Key': BACKBOARD_API_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          content: userMessage,
-          memory: 'Auto', // Backboard reads AND writes to persistent memory
-        }),
+    let backboardData = await sendBackboardMessage(BACKBOARD_API_KEY, threadId!, userMessage);
+    let assistantReply = extractAssistantReply(backboardData);
+
+    if (isBackboardPromptError(assistantReply)) {
+      console.warn('Backboard thread returned prompt-template error. Recreating thread and retrying once.');
+
+      const freshThreadId = await createBackboardThread(BACKBOARD_API_KEY, resolvedAssistantId);
+      threadId = freshThreadId;
+
+      const { error: threadUpdateError } = await supabaseClient
+        .from('profiles')
+        .update({ backboard_thread_id: freshThreadId })
+        .eq('user_id', user.id);
+
+      if (threadUpdateError) {
+        console.error('Failed to save recreated thread ID:', threadUpdateError);
       }
-    );
 
-    if (!backboardRes.ok) {
-      const errText = await backboardRes.text();
-      console.error('Backboard API error:', backboardRes.status, errText);
-      throw new Error(`Backboard API error: ${backboardRes.status}`);
+      backboardData = await sendBackboardMessage(BACKBOARD_API_KEY, freshThreadId, userMessage);
+      assistantReply = extractAssistantReply(backboardData);
     }
-
-    const backboardData = await backboardRes.json();
-    const assistantReply = backboardData.content || backboardData.message || backboardData.response || '';
 
     console.log('Backboard response received, parsing recommendations');
 
@@ -183,6 +161,142 @@ serve(async (req) => {
     );
   }
 });
+
+interface BackboardAssistant {
+  assistant_id: string;
+  name?: string;
+}
+
+const MANAGED_ASSISTANT_NAME = 'Netflix Recommendation Engine Managed';
+const DEFAULT_ASSISTANT_SYSTEM_PROMPT = `You are a Netflix recommendation assistant with persistent memory.
+
+Always return valid JSON with:
+- recommendations: array of 3-5 items
+- memoryNote: optional short string
+
+Each recommendation object must include exactly these keys:
+- title
+- type
+- genre
+- description
+- matchReason
+- rating
+
+Never suggest titles the user has already watched or disliked.`;
+
+async function resolveAssistantId(
+  apiKey: string,
+  configuredAssistantId?: string
+): Promise<string> {
+  const assistantsRes = await fetch(`${BACKBOARD_BASE_URL}/assistants`, {
+    headers: { 'X-API-Key': apiKey },
+  });
+
+  if (!assistantsRes.ok) {
+    const errText = await assistantsRes.text();
+    throw new Error(`Backboard assistants lookup failed: ${assistantsRes.status} ${errText}`);
+  }
+
+  const assistantsPayload = await assistantsRes.json();
+  const assistants: BackboardAssistant[] = Array.isArray(assistantsPayload)
+    ? assistantsPayload
+    : assistantsPayload?.assistants ?? [];
+
+  if (configuredAssistantId && assistants.some((a) => a.assistant_id === configuredAssistantId)) {
+    return configuredAssistantId;
+  }
+
+  const managedAssistant = assistants.find((a) => a.name === MANAGED_ASSISTANT_NAME);
+  if (managedAssistant?.assistant_id) {
+    return managedAssistant.assistant_id;
+  }
+
+  const createAssistantRes = await fetch(`${BACKBOARD_BASE_URL}/assistants`, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: MANAGED_ASSISTANT_NAME,
+      system_prompt: DEFAULT_ASSISTANT_SYSTEM_PROMPT,
+      description: 'Personalized Netflix recommendations with memory',
+    }),
+  });
+
+  if (!createAssistantRes.ok) {
+    const errText = await createAssistantRes.text();
+    throw new Error(`Backboard assistant creation failed: ${createAssistantRes.status} ${errText}`);
+  }
+
+  const createdAssistant = await createAssistantRes.json();
+  const createdAssistantId = createdAssistant?.assistant_id || createdAssistant?.id;
+
+  if (!createdAssistantId) {
+    throw new Error('Backboard assistant creation succeeded but returned no assistant_id.');
+  }
+
+  console.log('Created managed Backboard assistant:', createdAssistantId);
+  return createdAssistantId;
+}
+
+async function createBackboardThread(apiKey: string, assistantId: string): Promise<string> {
+  const createThreadRes = await fetch(`${BACKBOARD_BASE_URL}/assistants/${assistantId}/threads`, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({}),
+  });
+
+  if (!createThreadRes.ok) {
+    const errText = await createThreadRes.text();
+    console.error('Failed to create Backboard thread:', createThreadRes.status, errText);
+    throw new Error(`Failed to create Backboard thread: ${createThreadRes.status}`);
+  }
+
+  const threadData = await createThreadRes.json();
+  const threadId = threadData?.thread_id || threadData?.id;
+  if (!threadId) {
+    throw new Error('Backboard thread creation succeeded but returned no thread_id.');
+  }
+
+  return threadId;
+}
+
+async function sendBackboardMessage(apiKey: string, threadId: string, userMessage: string) {
+  const backboardRes = await fetch(`${BACKBOARD_BASE_URL}/threads/${threadId}/messages`, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      content: userMessage,
+      memory: 'Auto',
+    }),
+  });
+
+  if (!backboardRes.ok) {
+    const errText = await backboardRes.text();
+    console.error('Backboard API error:', backboardRes.status, errText);
+    throw new Error(`Backboard API error: ${backboardRes.status}`);
+  }
+
+  return backboardRes.json();
+}
+
+function extractAssistantReply(backboardData: any): string {
+  return backboardData?.content || backboardData?.message || backboardData?.response || '';
+}
+
+function isBackboardPromptError(reply: string): boolean {
+  return (
+    reply.includes('Input to ChatPromptTemplate is missing variables') ||
+    reply.includes('LLM Invocation Error')
+  );
+}
 
 function buildPreferencesMessage(
   preferences: any,
