@@ -184,6 +184,69 @@ serve(async (req) => {
   }
 });
 
+interface BackboardAssistant {
+  assistant_id: string;
+  name?: string;
+}
+
+const DEFAULT_ASSISTANT_SYSTEM_PROMPT = `You are a Netflix recommendation assistant with persistent memory. Return valid JSON with a recommendations array and optional memoryNote. Each recommendation must include title, type, genre, description, matchReason, and rating. Avoid titles the user already watched or disliked.`;
+
+async function resolveAssistantId(
+  apiKey: string,
+  configuredAssistantId?: string
+): Promise<string> {
+  const assistantsRes = await fetch(`${BACKBOARD_BASE_URL}/assistants`, {
+    headers: { 'X-API-Key': apiKey },
+  });
+
+  if (!assistantsRes.ok) {
+    const errText = await assistantsRes.text();
+    throw new Error(`Backboard assistants lookup failed: ${assistantsRes.status} ${errText}`);
+  }
+
+  const assistantsPayload = await assistantsRes.json();
+  const assistants: BackboardAssistant[] = Array.isArray(assistantsPayload)
+    ? assistantsPayload
+    : assistantsPayload?.assistants ?? [];
+
+  if (configuredAssistantId && assistants.some((a) => a.assistant_id === configuredAssistantId)) {
+    return configuredAssistantId;
+  }
+
+  if (assistants.length > 0) {
+    console.warn('Configured assistant not found. Falling back to first available assistant.');
+    return assistants[0].assistant_id;
+  }
+
+  const createAssistantRes = await fetch(`${BACKBOARD_BASE_URL}/assistants`, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: 'Netflix Recommendation Engine',
+      system_prompt: DEFAULT_ASSISTANT_SYSTEM_PROMPT,
+      description: 'Personalized Netflix recommendations with memory',
+    }),
+  });
+
+  if (!createAssistantRes.ok) {
+    const errText = await createAssistantRes.text();
+    throw new Error(`Backboard assistant creation failed: ${createAssistantRes.status} ${errText}`);
+  }
+
+  const createdAssistant = await createAssistantRes.json();
+  const createdAssistantId = createdAssistant?.assistant_id || createdAssistant?.id;
+
+  if (!createdAssistantId) {
+    throw new Error('Backboard assistant creation succeeded but returned no assistant_id.');
+  }
+
+  console.log('Created new Backboard assistant:', createdAssistantId);
+  return createdAssistantId;
+}
+
 function buildPreferencesMessage(
   preferences: any,
   watchedShows: string[] = [],
