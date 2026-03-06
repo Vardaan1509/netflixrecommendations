@@ -72,7 +72,7 @@ serve(async (req) => {
     if (!threadId) {
       console.log('Creating new Backboard thread for user:', user.id);
       const createThreadRes = await fetch(
-        `${BACKBOARD_BASE_URL}/assistants/${BACKBOARD_ASSISTANT_ID}/threads`,
+        `${BACKBOARD_BASE_URL}/chat/threads?assistant_id=${BACKBOARD_ASSISTANT_ID}`,
         {
           method: 'POST',
           headers: {
@@ -134,7 +134,7 @@ serve(async (req) => {
 
     // Send message to Backboard with persistent memory
     const backboardRes = await fetch(
-      `${BACKBOARD_BASE_URL}/threads/${threadId}/messages`,
+      `${BACKBOARD_BASE_URL}/chat/threads/${threadId}/messages`,
       {
         method: 'POST',
         headers: {
