@@ -88,7 +88,7 @@ serve(async (req) => {
 
         // Send feedback into the Backboard memory loop
         const backboardRes = await fetch(
-            `${BACKBOARD_BASE_URL}/threads/${threadId}/messages`,
+            `${BACKBOARD_BASE_URL}/chat/threads/${threadId}/messages`,
             {
                 method: 'POST',
                 headers: {
