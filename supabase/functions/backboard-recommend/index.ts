@@ -26,14 +26,14 @@ serve(async (req) => {
 
   try {
     const BACKBOARD_API_KEY = Deno.env.get('BACKBOARD_API_KEY')?.trim();
-    const BACKBOARD_ASSISTANT_ID = Deno.env.get('BACKBOARD_ASSISTANT_ID')?.trim() || '4a2628e1-2439-4583-a2da-7dcabb2421bb';
+    const configuredAssistantId = Deno.env.get('BACKBOARD_ASSISTANT_ID')?.trim();
 
-    console.log('Backboard API key prefix:', BACKBOARD_API_KEY?.substring(0, 8));
-    console.log('Backboard Assistant ID:', BACKBOARD_ASSISTANT_ID);
-
-    if (!BACKBOARD_API_KEY || !BACKBOARD_ASSISTANT_ID) {
-      throw new Error('Backboard configuration missing. Set BACKBOARD_API_KEY and BACKBOARD_ASSISTANT_ID.');
+    if (!BACKBOARD_API_KEY) {
+      throw new Error('Backboard configuration missing. Set BACKBOARD_API_KEY.');
     }
+
+    const resolvedAssistantId = await resolveAssistantId(BACKBOARD_API_KEY, configuredAssistantId);
+    console.log('Using Backboard assistant ID:', resolvedAssistantId);
 
     // Authenticate user
     const authHeader = req.headers.get('authorization');
