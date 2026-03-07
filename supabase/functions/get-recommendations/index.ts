@@ -33,7 +33,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    
+
     // Validate input
     const validation = recommendationsRequestSchema.safeParse(body);
     if (!validation.success) {
@@ -59,7 +59,7 @@ serve(async (req) => {
     let embeddingBasedCandidates: string[] = []; // STEP 3: Candidates from similarity search
 
     let previouslyRecommended: string[] = [];
-    
+
     // If user is authenticated, fetch their rating history, embeddings, and previous recommendations
     if (authHeader) {
       try {
@@ -74,17 +74,17 @@ serve(async (req) => {
         const { data: { user } } = await supabaseClient.auth.getUser(token);
         if (user) {
           userId = user.id;
-          
+
           // Fetch ALL past recommendations to avoid repeats
           const { data: allPastRecs } = await supabaseClient
             .from('recommendations')
             .select('title')
             .eq('user_id', userId);
-          
+
           if (allPastRecs && allPastRecs.length > 0) {
             previouslyRecommended = allPastRecs.map(r => r.title);
           }
-          
+
           // Fetch user's past recommendations with ratings for learning
           const { data: pastRecs } = await supabaseClient
             .from('recommendations')
@@ -110,7 +110,7 @@ serve(async (req) => {
 
           if (embeddings && embeddings.length > 0) {
             console.log(`Found ${embeddings.length} embeddings for similarity search`);
-            
+
             // For each embedding, find similar shows using cosine similarity
             // We'll aggregate all similar titles across all user's liked shows
             const allSimilarTitles = new Set<string>();
@@ -282,21 +282,21 @@ Additional Focus:
     let ratingHistoryText = '';
     let patternAnalysisText = '';
     let watchedSignalsText = '';
-    
+
     if (ratingHistory.length > 0) {
       // Weight recent ratings more heavily (last 10 vs older ones)
       const recentRatings = ratingHistory.slice(0, 10);
       const olderRatings = ratingHistory.slice(10);
-      
+
       // ============= IMPROVEMENT #2: Richer Context =============
       // Separate by rating with WHY they liked/disliked (match_reason)
       const loved = ratingHistory.filter(r => r.user_rating >= 4);
       const disliked = ratingHistory.filter(r => r.user_rating <= 2);
-      
+
       let richContextText = '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
       richContextText += '📊 DETAILED USER PREFERENCE ANALYSIS (USE THIS TO LEARN)\n';
       richContextText += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
-      
+
       if (loved.length > 0) {
         richContextText += '✅ HIGH-RATED CONTENT (4-5 stars) - PRIORITIZE THESE PATTERNS:\n';
         loved.forEach(r => {
@@ -305,7 +305,7 @@ Additional Focus:
         });
         richContextText += '\n';
       }
-      
+
       if (disliked.length > 0) {
         richContextText += '❌ LOW-RATED CONTENT (1-2 stars) - AVOID THESE PATTERNS:\n';
         disliked.forEach(r => {
@@ -314,14 +314,14 @@ Additional Focus:
         });
         richContextText += '\n';
       }
-      
+
       richContextText += '⚡ RECENT PREFERENCES (Last 10 ratings - weight these MORE heavily):\n';
       recentRatings.forEach(r => {
         richContextText += `   • "${r.title}" - ⭐${r.user_rating}/5 (${r.type}, ${r.genre})\n`;
       });
-      
+
       ratingHistoryText = richContextText;
-      
+
       // ============= IMPROVEMENT #3: Rating Pattern Analysis =============
       // Calculate genre statistics
       const genreStats: { [key: string]: { total: number; count: number } } = {};
@@ -332,7 +332,7 @@ Additional Focus:
         genreStats[r.genre].total += r.user_rating;
         genreStats[r.genre].count += 1;
       });
-      
+
       const genreAverages = Object.entries(genreStats)
         .map(([genre, stats]) => ({
           genre,
@@ -340,26 +340,26 @@ Additional Focus:
           count: stats.count
         }))
         .sort((a, b) => b.avg - a.avg);
-      
+
       // Calculate content type statistics
       const seriesRatings = ratingHistory.filter(r => r.type.toLowerCase().includes('series'));
       const movieRatings = ratingHistory.filter(r => r.type.toLowerCase().includes('movie'));
-      
-      const seriesAvg = seriesRatings.length > 0 
-        ? seriesRatings.reduce((sum, r) => sum + r.user_rating, 0) / seriesRatings.length 
+
+      const seriesAvg = seriesRatings.length > 0
+        ? seriesRatings.reduce((sum, r) => sum + r.user_rating, 0) / seriesRatings.length
         : 0;
-      const movieAvg = movieRatings.length > 0 
-        ? movieRatings.reduce((sum, r) => sum + r.user_rating, 0) / movieRatings.length 
+      const movieAvg = movieRatings.length > 0
+        ? movieRatings.reduce((sum, r) => sum + r.user_rating, 0) / movieRatings.length
         : 0;
-      
+
       patternAnalysisText = '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
       patternAnalysisText += '📈 STATISTICAL PATTERN ANALYSIS (DATA-DRIVEN INSIGHTS)\n';
       patternAnalysisText += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
-      
+
       if (genreAverages.length > 0) {
         const topGenres = genreAverages.filter(g => g.avg >= 4.0);
         const poorGenres = genreAverages.filter(g => g.avg <= 2.5);
-        
+
         if (topGenres.length > 0) {
           patternAnalysisText += '🎯 HIGHEST-RATED GENRES (Focus recommendations here):\n';
           topGenres.forEach(g => {
@@ -367,7 +367,7 @@ Additional Focus:
           });
           patternAnalysisText += '\n';
         }
-        
+
         if (poorGenres.length > 0) {
           patternAnalysisText += '⚠️ LOWEST-RATED GENRES (Avoid or be very selective):\n';
           poorGenres.forEach(g => {
@@ -376,7 +376,7 @@ Additional Focus:
           patternAnalysisText += '\n';
         }
       }
-      
+
       if (seriesRatings.length > 0 || movieRatings.length > 0) {
         patternAnalysisText += '🎬 CONTENT TYPE PREFERENCE:\n';
         if (seriesRatings.length > 0) {
@@ -385,22 +385,22 @@ Additional Focus:
         if (movieRatings.length > 0) {
           patternAnalysisText += `   • Movies: ${movieAvg.toFixed(1)} avg rating (${movieRatings.length} ratings)\n`;
         }
-        
-        const preference = Math.abs(seriesAvg - movieAvg) > 0.5 
+
+        const preference = Math.abs(seriesAvg - movieAvg) > 0.5
           ? (seriesAvg > movieAvg ? 'STRONGLY prefers TV Series' : 'STRONGLY prefers Movies')
           : 'No strong preference between Series and Movies';
         patternAnalysisText += `   📊 INSIGHT: User ${preference}\n\n`;
       }
-      
+
       // ============= IMPROVEMENT #4: Watched Status as Strong Signal =============
       const watchedAndLoved = ratingHistory.filter(r => r.watched === true && r.user_rating >= 4);
       const likedButNotWatched = ratingHistory.filter(r => (r.watched === false || r.watched === null) && r.user_rating >= 4);
       const watchedAndDisliked = ratingHistory.filter(r => r.watched === true && r.user_rating <= 2);
-      
+
       watchedSignalsText = '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
       watchedSignalsText += '🎯 WATCHED STATUS SIGNALS (CONFIDENCE LEVELS)\n';
       watchedSignalsText += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
-      
+
       if (watchedAndLoved.length > 0) {
         watchedSignalsText += '🏆 WATCHED & LOVED (HIGHEST CONFIDENCE - STRONGEST SIGNAL):\n';
         watchedSignalsText += '   These are CONFIRMED great matches - user actually watched AND loved them.\n';
@@ -410,7 +410,7 @@ Additional Focus:
         });
         watchedSignalsText += '\n';
       }
-      
+
       if (likedButNotWatched.length > 0) {
         watchedSignalsText += '💭 RATED HIGH BUT NOT WATCHED (LOWER CONFIDENCE):\n';
         watchedSignalsText += '   User liked the idea but hasn\'t actually watched these yet.\n';
@@ -420,7 +420,7 @@ Additional Focus:
         });
         watchedSignalsText += '\n';
       }
-      
+
       if (watchedAndDisliked.length > 0) {
         watchedSignalsText += '🚫 WATCHED BUT DISLIKED (STRONG NEGATIVE SIGNAL):\n';
         watchedSignalsText += '   User gave these a chance by watching but didn\'t enjoy them.\n';
@@ -430,7 +430,7 @@ Additional Focus:
         });
         watchedSignalsText += '\n';
       }
-      
+
       watchedSignalsText += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
       watchedSignalsText += 'RECOMMENDATION STRATEGY:\n';
       watchedSignalsText += '1. Find shows VERY similar to "Watched & Loved" (highest priority)\n';
@@ -438,7 +438,7 @@ Additional Focus:
       watchedSignalsText += '3. Strongly avoid patterns from "Watched but Disliked" (critical)\n';
       watchedSignalsText += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
     }
-    
+
     let excludeText = '';
     if (previouslyRecommended.length > 0) {
       excludeText = `\n\n🚫🚫🚫 PREVIOUSLY RECOMMENDED - ABSOLUTE PROHIBITION - DO NOT REPEAT ANY OF THESE TITLES 🚫🚫🚫:
@@ -533,7 +533,7 @@ FOR EACH RECOMMENDATION YOU CONSIDER:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-3.0-flash',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -554,7 +554,7 @@ FOR EACH RECOMMENDATION YOU CONSIDER:
       timestamp: new Date().toISOString(),
       hasContent: !!content
     });
-    
+
     const recommendations = JSON.parse(content);
 
     return new Response(JSON.stringify(recommendations), {

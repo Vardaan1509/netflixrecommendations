@@ -24,7 +24,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    
+
     // Validate input
     const validation = nextQuestionRequestSchema.safeParse(body);
     if (!validation.success) {
@@ -221,7 +221,7 @@ What should I do next?`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-3.0-flash',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -242,7 +242,7 @@ What should I do next?`;
       timestamp: new Date().toISOString(),
       hasContent: !!content
     });
-    
+
     // Strip markdown code blocks if present
     content = content.trim();
     if (content.startsWith('```json')) {
@@ -250,7 +250,7 @@ What should I do next?`;
     } else if (content.startsWith('```')) {
       content = content.replace(/^```\s*/, '').replace(/\s*```$/, '');
     }
-    
+
     const result = JSON.parse(content);
 
     // Normalize preferences to ensure genres is always an array

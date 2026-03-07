@@ -228,7 +228,7 @@ const BackboardChat = ({ session, watchedShows, region }: BackboardChatProps) =>
                                                             key={sIdx}
                                                             variant="outline"
                                                             size="sm"
-                                                            className="text-xs h-auto py-1.5 px-3 bg-card/50 hover:bg-primary/10 hover:border-primary/50"
+                                                            className="text-xs h-auto py-1.5 px-3 bg-card/50 hover:bg-primary/10 hover:border-primary/50 hover:text-foreground transition-colors"
                                                             onClick={() => handleQuickSuggestion(suggestion)}
                                                             disabled={loading}
                                                         >
