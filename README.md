@@ -25,7 +25,7 @@ Frontend: React, TypeScript, Tailwind CSS
 Backend/Database: Supabase 
 
 
-AI Integration: Lovable AI 
+AI Integration: OpenRouter (configurable chat model, default google/gemini-3-flash-preview, for the questionnaire & recommendations; openai/text-embedding-3-small for similarity) + Backboard (memory-powered assistant) 
 
 
 Deployment: Global user testing deployment 
@@ -64,8 +64,12 @@ To run this project, you will need to add the following environment variables to
 
 ```
 VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 ```
+
+> The variable name must be `VITE_SUPABASE_PUBLISHABLE_KEY` — that is the exact name read in `src/integrations/supabase/client.ts`. See `.env.example` for a full template.
+
+The Supabase Edge Functions also require server-side secrets (`OPENROUTER_API_KEY`, optional `OPENROUTER_MODEL`, `BACKBOARD_API_KEY`, `BACKBOARD_ASSISTANT_ID`). These are set in Supabase, not in this `.env`. A single `OPENROUTER_API_KEY` powers the chat completions and the embeddings; set `OPENROUTER_MODEL` to change the chat model without editing code (defaults to `google/gemini-3-flash-preview`).
 # 🌟 About the Developer
 Developed by Vardaan Mehandiratta , a Computer Engineering student at the University of Waterloo. This project showcases expertise in full-stack development, AI integration, and user-centric design
 npm install
