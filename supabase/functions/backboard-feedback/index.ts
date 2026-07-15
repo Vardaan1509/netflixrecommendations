@@ -27,11 +27,13 @@ serve(async (req) => {
     }
 
     try {
+        // Only the API key is needed here — feedback is sent into the user's
+        // existing thread (looked up from their profile below), so no
+        // assistant ID lookup is required for this function.
         const BACKBOARD_API_KEY = Deno.env.get('BACKBOARD_API_KEY');
-        const BACKBOARD_ASSISTANT_ID = Deno.env.get('BACKBOARD_ASSISTANT_ID');
 
-        if (!BACKBOARD_API_KEY || !BACKBOARD_ASSISTANT_ID) {
-            throw new Error('Backboard configuration missing.');
+        if (!BACKBOARD_API_KEY) {
+            throw new Error('Backboard configuration missing. Set BACKBOARD_API_KEY.');
         }
 
         // Authenticate user
