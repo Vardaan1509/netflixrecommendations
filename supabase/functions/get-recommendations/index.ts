@@ -152,10 +152,12 @@ serve(async (req) => {
       }
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
+    if (!OPENROUTER_API_KEY) {
+      throw new Error('OPENROUTER_API_KEY is not configured');
     }
+    // Model is configurable via the OPENROUTER_MODEL secret (no redeploy needed to change it).
+    const OPENROUTER_MODEL = Deno.env.get('OPENROUTER_MODEL') ?? 'google/gemini-3-flash-preview';
 
     // Known unavailable content in Canada (common false positives)
     const canadaUnavailableList = region === 'Canada' ? [
@@ -526,14 +528,16 @@ FOR EACH RECOMMENDATION YOU CONSIDER:
 □ No titles from the excluded list
 □ Matches their preferences AND availability constraints`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://smart-netflix-recommendations.app',
+        'X-Title': 'Smart Netflix Recommendations',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3.0-flash',
+        model: OPENROUTER_MODEL,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -544,8 +548,8 @@ FOR EACH RECOMMENDATION YOU CONSIDER:
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI gateway error:', response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+      console.error('OpenRouter API error:', response.status, errorText);
+      throw new Error(`OpenRouter API error: ${response.status}`);
     }
 
     const data = await response.json();

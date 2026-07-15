@@ -41,10 +41,12 @@ serve(async (req) => {
       entryCount: conversationHistory.length
     });
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
+    if (!OPENROUTER_API_KEY) {
+      throw new Error('OPENROUTER_API_KEY is not configured');
     }
+    // Model is configurable via the OPENROUTER_MODEL secret (no redeploy needed to change it).
+    const OPENROUTER_MODEL = Deno.env.get('OPENROUTER_MODEL') ?? 'google/gemini-3-flash-preview';
 
     const systemPrompt = `You are an intelligent Netflix recommendation questionnaire AI. Your role is to conduct a natural, adaptive conversation to understand user preferences and determine when you have enough information to make confident recommendations.
 
@@ -214,14 +216,16 @@ ${conversationHistory.map((entry: any, idx: number) => `${idx + 1}. Q: ${entry.q
 
 What should I do next?`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://smart-netflix-recommendations.app',
+        'X-Title': 'Smart Netflix Recommendations',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3.0-flash',
+        model: OPENROUTER_MODEL,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -232,8 +236,8 @@ What should I do next?`;
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI gateway error:', response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+      console.error('OpenRouter API error:', response.status, errorText);
+      throw new Error(`OpenRouter API error: ${response.status}`);
     }
 
     const data = await response.json();
