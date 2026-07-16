@@ -63,6 +63,29 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      fontFamily: {
+        sans: [
+          "Inter",
+          "ui-sans-serif",
+          "system-ui",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "Segoe UI",
+          "Roboto",
+          "sans-serif",
+        ],
+        display: [
+          "Inter Tight",
+          "Inter",
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
+        ],
+      },
+      letterSpacing: {
+        tightest: "-0.045em",
+        "extra-tight": "-0.03em",
+      },
       keyframes: {
         "accordion-down": {
           from: {
@@ -84,11 +107,16 @@ export default {
           "0%, 100%": { opacity: "0.8" },
           "50%": { opacity: "1" },
         },
+        "fade-slide-up": {
+          "0%": { opacity: "0", transform: "translateY(6px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "gradient-shift": "gradient-shift 8s ease-in-out infinite",
+        "fade-slide-up": "fade-slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
       },
     },
   },
