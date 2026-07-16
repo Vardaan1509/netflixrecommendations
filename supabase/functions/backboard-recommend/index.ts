@@ -62,6 +62,24 @@ serve(async (req) => {
     // Parse request body
     const { message, preferences, watchedShows, region } = await req.json();
 
+    // ── Server-side moderation ────────────────────────────────────────
+    // Client enforces the same rules for fast feedback, but the client
+    // can be bypassed by hitting this URL directly, so we re-check here.
+    if (typeof message === 'string' && message.trim().length > 0) {
+      const check = moderateMessage(message);
+      if (!check.ok) {
+        console.warn('Moderation blocked message:', check.reason);
+        return new Response(
+          JSON.stringify({
+            error: 'moderation_blocked',
+            reason: check.reason,
+            message: check.message ?? 'Request blocked by moderation.',
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // Look up user's Backboard thread ID
     const { data: profile } = await supabaseClient
       .from('profiles')
@@ -321,6 +339,61 @@ function buildPreferencesMessage(
   ].filter(Boolean);
 
   return parts.join('\n');
+}
+
+// ── Moderation ──────────────────────────────────────────────────────
+// Server-side twin of src/lib/moderation.ts. Duplicated on purpose:
+// edge functions run on Deno and can't import the browser bundle.
+
+const MAX_INPUT_LENGTH = 500;
+
+const INJECTION_PATTERNS: RegExp[] = [
+  /\bignore\s+(all\s+)?(previous|prior|above)\s+(instructions|prompts|rules)\b/i,
+  /\bdisregard\s+(all\s+)?(previous|prior|above)\b/i,
+  /\byou\s+are\s+now\s+(a|an|the)\s+/i,
+  /\bpretend\s+(to\s+be|you\s+are)\b/i,
+  /\bact\s+as\s+(a|an|if)\b/i,
+  /\bforget\s+(everything|all|your|the)\s+(you|previous|prior|instructions)\b/i,
+  /\bsystem\s+prompt\b/i,
+  /\breveal\s+your\s+(instructions|prompt|rules|system)\b/i,
+  /\bjailbreak\b/i,
+  /\bDAN\s+mode\b/i,
+];
+
+const PROFANITY_LIST = [
+  'fuck', 'shit', 'bitch', 'asshole', 'bastard', 'cunt',
+  'dick', 'pussy', 'faggot', 'retard', 'nigger', 'nigga',
+];
+
+const buildProfanityRegex = () => {
+  const leet: Record<string, string> = {
+    a: '[a@4]', e: '[e3]', i: '[i1!|]', o: '[o0]', s: '[s$5]', t: '[t7]',
+  };
+  const patterns = PROFANITY_LIST.map((word) => {
+    const body = [...word].map((ch) => `${leet[ch] ?? ch}+`).join('[\\W_]*');
+    return `\\b${body}\\b`;
+  });
+  return new RegExp(`(${patterns.join('|')})`, 'i');
+};
+
+const PROFANITY_REGEX = buildProfanityRegex();
+
+function moderateMessage(raw: string): {
+  ok: boolean;
+  reason?: 'too_long' | 'prompt_injection' | 'profanity';
+  message?: string;
+} {
+  const text = raw.trim();
+  if (text.length > MAX_INPUT_LENGTH) {
+    return { ok: false, reason: 'too_long', message: `Keep it under ${MAX_INPUT_LENGTH} characters.` };
+  }
+  for (const p of INJECTION_PATTERNS) {
+    if (p.test(text)) return { ok: false, reason: 'prompt_injection', message: "Let's keep it about movies and shows." };
+  }
+  if (PROFANITY_REGEX.test(text)) {
+    return { ok: false, reason: 'profanity', message: "Let's keep the conversation friendly." };
+  }
+  return { ok: true };
 }
 
 function parseRecommendations(response: string): {
