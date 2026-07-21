@@ -227,6 +227,8 @@ CREATE TRIGGER update_show_embeddings_updated_at
 -- Called via supabaseClient.rpc('match_show_embeddings', {...}) from the
 -- get-recommendations edge function.
 -- ---------------------------------------------------------------------------
+-- Scoped to auth.uid() so a request only matches the caller's own embeddings
+-- (never other users' private ratings). Anonymous calls match no rows.
 CREATE OR REPLACE FUNCTION public.match_show_embeddings(
   query_embedding vector(1536),
   match_threshold float,
@@ -246,7 +248,8 @@ AS $$
     description,
     1 - (embedding <=> query_embedding) AS similarity
   FROM show_embeddings
-  WHERE 1 - (embedding <=> query_embedding) > match_threshold
+  WHERE user_id = auth.uid()
+    AND 1 - (embedding <=> query_embedding) > match_threshold
   ORDER BY embedding <=> query_embedding
   LIMIT match_count;
 $$;
