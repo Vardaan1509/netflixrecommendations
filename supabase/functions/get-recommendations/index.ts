@@ -1,11 +1,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { corsHeaders as buildCorsHeaders } from "../_shared/cors.ts";
+import { rateLimit, callerId } from "../_shared/redis.ts";
 
 // Input validation schemas
 const preferencesSchema = z.object({
@@ -27,11 +24,28 @@ const recommendationsRequestSchema = z.object({
 });
 
 serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req);
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Rate limit BEFORE any expensive work (LLM + embeddings + DB queries).
+    const rl = await rateLimit(callerId(req), 20, 60);
+    if (!rl.allowed) {
+      return new Response(
+        JSON.stringify({ error: 'Too many requests. Please wait a moment and try again.' }),
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+            'Retry-After': String(rl.resetSeconds),
+          },
+        }
+      );
+    }
+
     const body = await req.json();
 
     // Validate input
