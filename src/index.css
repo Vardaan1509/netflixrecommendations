@@ -8,39 +8,43 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 220 26% 8%;
-    --foreground: 210 40% 98%;
+    /* Deep charcoal with a subtle blue undertone — dark but not oppressive */
+    --background: 220 14% 8%;
+    --foreground: 0 0% 99%;
 
-    --card: 220 20% 12%;
-    --card-foreground: 210 40% 98%;
+    --card: 220 12% 12%;
+    --card-foreground: 0 0% 99%;
 
-    --popover: 220 20% 12%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 220 12% 12%;
+    --popover-foreground: 0 0% 99%;
 
-    --primary: 280 80% 60%;
-    --primary-foreground: 210 40% 98%;
+    /* Lifted slate-blue accent — visible, not electric */
+    --primary: 210 55% 68%;
+    --primary-foreground: 220 40% 8%;
 
-    --secondary: 220 18% 18%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 220 10% 17%;
+    --secondary-foreground: 0 0% 99%;
 
-    --muted: 220 18% 18%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 220 10% 17%;
+    --muted-foreground: 220 10% 72%;
 
-    --accent: 195 92% 54%;
-    --accent-foreground: 220 26% 8%;
+    /* Accent kept in the same hue family so nothing rainbow-y happens */
+    --accent: 210 40% 55%;
+    --accent-foreground: 0 0% 99%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 99%;
 
-    --border: 220 18% 22%;
-    --input: 220 18% 22%;
-    --ring: 280 80% 60%;
+    --border: 220 12% 20%;
+    --input: 220 12% 20%;
+    --ring: 210 55% 68%;
 
     --radius: 0.75rem;
-    
-    --gradient-primary: linear-gradient(135deg, hsl(280 80% 60%) 0%, hsl(195 92% 54%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(220 20% 14%) 0%, hsl(220 20% 10%) 100%);
-    --shadow-glow: 0 0 40px hsl(280 80% 60% / 0.3);
+
+    /* Subtler brand gradient (mono-hue), used sparingly */
+    --gradient-primary: linear-gradient(180deg, hsl(210 60% 72%) 0%, hsl(210 55% 58%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(220 12% 14%) 0%, hsl(220 12% 11%) 100%);
+    --shadow-glow: 0 1px 0 hsl(0 0% 100% / 0.08) inset, 0 12px 24px -12px hsl(0 0% 0% / 0.5);
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
     --sidebar-background: 0 0% 98%;
@@ -61,33 +65,33 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 220 26% 8%;
-    --foreground: 210 40% 98%;
+    --background: 220 14% 8%;
+    --foreground: 0 0% 99%;
 
-    --card: 220 20% 12%;
-    --card-foreground: 210 40% 98%;
+    --card: 220 12% 12%;
+    --card-foreground: 0 0% 99%;
 
-    --popover: 220 20% 12%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 220 12% 12%;
+    --popover-foreground: 0 0% 99%;
 
-    --primary: 280 80% 60%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 210 55% 68%;
+    --primary-foreground: 220 40% 8%;
 
-    --secondary: 220 18% 18%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 220 10% 17%;
+    --secondary-foreground: 0 0% 99%;
 
-    --muted: 220 18% 18%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 220 10% 17%;
+    --muted-foreground: 220 10% 72%;
 
-    --accent: 195 92% 54%;
-    --accent-foreground: 220 26% 8%;
+    --accent: 210 40% 55%;
+    --accent-foreground: 0 0% 99%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 99%;
 
-    --border: 220 18% 22%;
-    --input: 220 18% 22%;
-    --ring: 280 80% 60%;
+    --border: 220 12% 20%;
+    --input: 220 12% 20%;
+    --ring: 210 55% 68%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -104,8 +108,71 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    font-family:
+      "Inter",
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      Roboto,
+      sans-serif;
+    /* Nicer Inter defaults — enable ss01 (single-storey a) + tabular numbers */
+    font-feature-settings: "ss01", "cv11", "tnum";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Custom scrollbar — matches the dark theme */
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  *:hover {
+    scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+  }
+
+  /* WebKit — Chrome, Edge, Safari */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+    background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* Display headings — tighter tracking, use Inter Tight */
+  h1,
+  h2,
+  h3 {
+    font-family:
+      "Inter Tight",
+      "Inter",
+      ui-sans-serif,
+      system-ui,
+      sans-serif;
+    letter-spacing: -0.02em;
   }
 }
 
@@ -119,10 +186,213 @@ All colors MUST be HSL.
 }
 
 @keyframes gradient-shift {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.8;
   }
   50% {
     opacity: 1;
   }
+}
+
+/* Smooth crossfade for the cycling welcome greeting */
+@keyframes greeting-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.animate-greeting {
+  animation: greeting-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ─── Iridescent orb (assistant avatar / hero presence) ─────────────── */
+@keyframes orb-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orb-spin-rev {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes orb-drift {
+  0%,
+  100% {
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: scale(1.03) translate3d(0, -1px, 0);
+  }
+}
+
+.orb {
+  position: relative;
+  border-radius: 9999px;
+  isolation: isolate;
+  animation: orb-drift 5s ease-in-out infinite;
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 0 1px hsl(0 0% 100% / 0.08),
+    inset -6px -8px 14px hsl(220 40% 5% / 0.55),
+    inset 4px 4px 10px hsl(0 0% 100% / 0.08);
+}
+
+/* Outer spectrum — the "atmosphere" */
+.orb::before {
+  content: "";
+  position: absolute;
+  inset: -10%;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 0deg,
+    hsl(210 90% 72%),
+    hsl(245 60% 62%),
+    hsl(285 55% 68%),
+    hsl(335 70% 75%),
+    hsl(25 75% 78%),
+    hsl(180 80% 68%),
+    hsl(210 90% 72%)
+  );
+  filter: blur(2px) saturate(1.1);
+  animation: orb-spin 7s linear infinite;
+  z-index: -3;
+}
+
+/* Inner secondary layer, rotating the other way with blend for depth */
+.orb-inner {
+  position: absolute;
+  inset: 8%;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 120deg,
+    hsl(200 100% 75% / 0.6),
+    hsl(275 65% 68% / 0.5),
+    hsl(340 70% 75% / 0.55),
+    hsl(45 70% 80% / 0.4),
+    hsl(185 90% 72% / 0.6),
+    hsl(200 100% 75% / 0.6)
+  );
+  filter: blur(1.5px);
+  animation: orb-spin-rev 11s linear infinite;
+  z-index: -2;
+  mix-blend-mode: screen;
+}
+
+/* Fixed specular highlight — this is what makes the eye read it as 3D */
+.orb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(
+      ellipse 55% 40% at 32% 24%,
+      hsl(0 0% 100% / 0.7) 0%,
+      hsl(0 0% 100% / 0.15) 35%,
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 60% 50% at 70% 82%,
+      hsl(220 60% 6% / 0.35) 0%,
+      transparent 55%
+    );
+  z-index: -1;
+  pointer-events: none;
+}
+
+.orb--sm::before {
+  filter: blur(1px) saturate(1.1);
+}
+.orb--sm .orb-inner {
+  filter: blur(0.75px);
+}
+
+.orb-halo {
+  position: absolute;
+  inset: -30%;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    hsl(210 90% 72% / 0.28) 0%,
+    hsl(280 50% 65% / 0.12) 45%,
+    transparent 72%
+  );
+  filter: blur(28px);
+  pointer-events: none;
+  z-index: -4;
+  animation: orb-drift 5s ease-in-out infinite reverse;
+}
+
+/* ─── Streaming text reveal (word-by-word fade) ─────────────────────── */
+@keyframes word-in {
+  0% {
+    opacity: 0;
+    transform: translateY(3px);
+    filter: blur(3px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.stream-word {
+  display: inline-block;
+  animation: word-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  white-space: pre;
+}
+
+@keyframes caret-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  vertical-align: -0.15em;
+  margin-left: 2px;
+  background: hsl(var(--foreground) / 0.7);
+  animation: caret-blink 1s steps(1) infinite;
+}
+
+/* Card entrance for recommendation results */
+@keyframes rec-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rec-in {
+  animation: rec-in 450ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }

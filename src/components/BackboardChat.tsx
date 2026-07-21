@@ -1,425 +1,403 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-    Brain,
-    Send,
-    Sparkles,
-    ThumbsUp,
-    ThumbsDown,
-    Eye,
-    EyeOff,
-    Loader2,
-    Star,
-    Film,
-    Tv,
-    MessageSquare,
-    RefreshCw,
+  Send,
+  ThumbsUp,
+  ThumbsDown,
+  Eye,
+  EyeOff,
+  Star,
+  Film,
+  Tv,
 } from "lucide-react";
 import { useBackboard, BackboardRecommendation } from "@/hooks/useBackboard";
 import { Session } from "@supabase/supabase-js";
 import { useToast } from "@/hooks/use-toast";
+import Orb from "@/components/Orb";
+import { moderateInput } from "@/lib/moderation";
 
 interface BackboardChatProps {
-    session: Session;
-    watchedShows: string[];
-    region: string;
+  session: Session;
+  watchedShows: string[];
+  region: string;
 }
 
 interface ChatMessage {
-    role: "user" | "assistant" | "system";
-    content: string;
-    recommendations?: BackboardRecommendation[];
-    memoryNote?: string;
-    timestamp: Date;
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  recommendations?: BackboardRecommendation[];
+  timestamp: Date;
 }
 
-const BackboardChat = ({ session, watchedShows, region }: BackboardChatProps) => {
-    const [input, setInput] = useState("");
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [initialized, setInitialized] = useState(false);
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const { toast } = useToast();
+/**
+ * Reveal text word-by-word to simulate streaming.
+ * Backboard's API doesn't stream, so we animate the reveal client-side.
+ */
+function useStreamedText(fullText: string, active: boolean, wordDelay = 30) {
+  const [count, setCount] = useState(active ? 0 : Number.POSITIVE_INFINITY);
 
-    const {
-        loading,
-        error,
-        getRecommendations,
-        sendFeedback,
-    } = useBackboard(session);
+  const tokens = useMemo(() => fullText.split(/(\s+)/).filter(Boolean), [fullText]);
 
-    // Auto-scroll to bottom of messages
-    useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-    }, [messages]);
-
-    // Show welcome message
-    useEffect(() => {
-        if (!initialized) {
-            setMessages([
-                {
-                    role: "system",
-                    content:
-                        "Welcome to your memory-powered assistant! I remember your preferences across sessions. Tell me what you're in the mood for, and I'll find your perfect match.",
-                    timestamp: new Date(),
-                },
-            ]);
-            setInitialized(true);
-        }
-    }, [initialized]);
-
-    const handleSend = async () => {
-        const trimmed = input.trim();
-        if (!trimmed || loading) return;
-
-        const userMessage: ChatMessage = {
-            role: "user",
-            content: trimmed,
-            timestamp: new Date(),
-        };
-
-        setMessages((prev) => [...prev, userMessage]);
-        setInput("");
-
-        const recs = await getRecommendations(trimmed, undefined, watchedShows, region);
-
-        const assistantMessage: ChatMessage = {
-            role: "assistant",
-            content:
-                recs.length > 0
-                    ? `Here are ${recs.length} recommendations based on your request and what I remember about your taste:`
-                    : "I couldn't parse specific recommendations, but here's what I found:",
-            recommendations: recs.length > 0 ? recs : undefined,
-            timestamp: new Date(),
-        };
-
-        setMessages((prev) => [...prev, assistantMessage]);
+  useEffect(() => {
+    if (!active) {
+      setCount(Number.POSITIVE_INFINITY);
+      return;
+    }
+    setCount(0);
+    let i = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      i += 1;
+      setCount(i);
+      if (i < tokens.length) timer = setTimeout(tick, wordDelay);
     };
+    timer = setTimeout(tick, wordDelay);
+    return () => clearTimeout(timer);
+  }, [tokens, active, wordDelay]);
 
-    const handleQuickSuggestion = async (suggestion: string) => {
-        setInput(suggestion);
-        const userMessage: ChatMessage = {
-            role: "user",
-            content: suggestion,
-            timestamp: new Date(),
-        };
+  const visible = tokens.slice(0, count);
+  const done = count >= tokens.length;
+  return { visible, done };
+}
 
-        setMessages((prev) => [...prev, userMessage]);
-
-        const recs = await getRecommendations(suggestion, undefined, watchedShows, region);
-
-        const assistantMessage: ChatMessage = {
-            role: "assistant",
-            content:
-                recs.length > 0
-                    ? `Here are ${recs.length} recommendations based on your request and what I remember about your taste:`
-                    : "I couldn't parse specific recommendations, but here's what I found:",
-            recommendations: recs.length > 0 ? recs : undefined,
-            timestamp: new Date(),
-        };
-
-        setMessages((prev) => [...prev, assistantMessage]);
-        setInput("");
-    };
-
-    const handleRate = async (rec: BackboardRecommendation, rating: number) => {
-        const success = await sendFeedback({
-            feedbackType: "rating",
-            title: rec.title,
-            rating,
-            reason: rating >= 4 ? `Liked the ${rec.genre} style` : undefined,
-        });
-
-        if (success) {
-            toast({
-                title: "Preference remembered! 🧠",
-                description: `Your ${rating >= 4 ? "love" : "dislike"} for "${rec.title}" is now in my memory.`,
-                duration: 3000,
-            });
-        }
-    };
-
-    const handleNotInterested = async (rec: BackboardRecommendation) => {
-        const success = await sendFeedback({
-            feedbackType: "not_interested",
-            title: rec.title,
-        });
-
-        if (success) {
-            toast({
-                title: "Got it! 🧠",
-                description: `I'll remember not to recommend "${rec.title}" again.`,
-                duration: 3000,
-            });
-        }
-    };
-
-    const handleAlreadyWatched = async (rec: BackboardRecommendation) => {
-        const success = await sendFeedback({
-            feedbackType: "watched",
-            title: rec.title,
-        });
-
-        if (success) {
-            toast({
-                title: "Noted! 🧠",
-                description: `"${rec.title}" marked as watched in my memory.`,
-                duration: 3000,
-            });
-        }
-    };
-
-    const quickSuggestions = [
-        "Something dark and psychological like Black Mirror",
-        "A feel-good comedy for tonight",
-        "What's similar to shows I've loved before?",
-        "Something short I can finish in one sitting",
-    ];
-
-    return (
-        <div className="space-y-4">
-            {/* Memory Badge */}
-            <div className="flex items-center justify-center gap-2">
-                <Badge
-                    variant="outline"
-                    className="gap-1.5 px-3 py-1 bg-purple-500/10 border-purple-500/30 text-purple-300"
-                >
-                    <Brain className="h-3.5 w-3.5" />
-                    Backboard Memory Active
-                </Badge>
-                <Badge
-                    variant="outline"
-                    className="gap-1.5 px-3 py-1 bg-green-500/10 border-green-500/30 text-green-300"
-                >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Learns from your feedback
-                </Badge>
-            </div>
-
-            {/* Chat Area */}
-            <Card className="bg-card/50 backdrop-blur-xl border-border/50">
-                <CardContent className="p-0">
-                    {/* Messages */}
-                    <div
-                        ref={scrollRef}
-                        className="h-[500px] overflow-y-auto p-4 space-y-4 scroll-smooth"
-                    >
-                        {messages.map((msg, idx) => (
-                            <div key={idx}>
-                                {msg.role === "system" ? (
-                                    <div className="flex gap-3 items-start">
-                                        <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
-                                            <Brain className="h-4 w-4 text-purple-400" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <p className="text-sm text-muted-foreground italic">
-                                                {msg.content}
-                                            </p>
-
-                                            {/* Quick Suggestions */}
-                                            {idx === 0 && messages.length === 1 && (
-                                                <div className="flex flex-wrap gap-2 mt-3">
-                                                    {quickSuggestions.map((suggestion, sIdx) => (
-                                                        <Button
-                                                            key={sIdx}
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="text-xs h-auto py-1.5 px-3 bg-card/50 hover:bg-primary/10 hover:border-primary/50 hover:text-foreground transition-colors"
-                                                            onClick={() => handleQuickSuggestion(suggestion)}
-                                                            disabled={loading}
-                                                        >
-                                                            {suggestion}
-                                                        </Button>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                ) : msg.role === "user" ? (
-                                    <div className="flex gap-3 items-start justify-end">
-                                        <div className="bg-primary/10 border border-primary/20 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[80%]">
-                                            <p className="text-sm">{msg.content}</p>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="flex gap-3 items-start">
-                                        <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                                            <Brain className="h-4 w-4 text-purple-400" />
-                                        </div>
-                                        <div className="flex-1 space-y-3">
-                                            <p className="text-sm text-foreground/90">{msg.content}</p>
-
-                                            {/* Recommendation Cards */}
-                                            {msg.recommendations && msg.recommendations.length > 0 && (
-                                                <div className="grid gap-3">
-                                                    {msg.recommendations.map((rec, rIdx) => (
-                                                        <div
-                                                            key={rIdx}
-                                                            className="rounded-xl border border-border/50 bg-card/30 p-4 space-y-2 hover:border-primary/30 transition-colors"
-                                                        >
-                                                            <div className="flex items-start justify-between gap-2">
-                                                                <div className="flex items-center gap-2">
-                                                                    {rec.type === "Series" ? (
-                                                                        <Tv className="h-4 w-4 text-primary" />
-                                                                    ) : (
-                                                                        <Film className="h-4 w-4 text-primary" />
-                                                                    )}
-                                                                    <h4 className="font-semibold text-sm">
-                                                                        {rec.title}
-                                                                    </h4>
-                                                                </div>
-                                                                <div className="flex items-center gap-1 text-accent shrink-0">
-                                                                    <Star className="h-3.5 w-3.5 fill-current" />
-                                                                    <span className="text-xs font-semibold">
-                                                                        {rec.rating}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="flex gap-1.5 flex-wrap">
-                                                                <Badge variant="secondary" className="text-[10px] h-5">
-                                                                    {rec.type}
-                                                                </Badge>
-                                                                <Badge variant="outline" className="text-[10px] h-5">
-                                                                    {rec.genre}
-                                                                </Badge>
-                                                            </div>
-
-                                                            <p className="text-xs text-foreground/80">
-                                                                {rec.description}
-                                                            </p>
-
-                                                            {rec.matchReason && (
-                                                                <div className="bg-purple-500/5 border border-purple-500/10 rounded-lg px-3 py-1.5">
-                                                                    <p className="text-xs text-purple-300/90">
-                                                                        <Brain className="h-3 w-3 inline mr-1" />
-                                                                        <span className="font-medium">Memory match:</span>{" "}
-                                                                        {rec.matchReason}
-                                                                    </p>
-                                                                </div>
-                                                            )}
-
-                                                            {/* Feedback Actions */}
-                                                            <div className="flex items-center gap-1 pt-1 border-t border-border/30">
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    className="h-7 px-2 text-xs gap-1 hover:text-green-400 hover:bg-green-500/10"
-                                                                    onClick={() => handleRate(rec, 5)}
-                                                                >
-                                                                    <ThumbsUp className="h-3 w-3" />
-                                                                    Love it
-                                                                </Button>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    className="h-7 px-2 text-xs gap-1 hover:text-red-400 hover:bg-red-500/10"
-                                                                    onClick={() => handleRate(rec, 1)}
-                                                                >
-                                                                    <ThumbsDown className="h-3 w-3" />
-                                                                    Not for me
-                                                                </Button>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    className="h-7 px-2 text-xs gap-1 hover:text-yellow-400 hover:bg-yellow-500/10"
-                                                                    onClick={() => handleAlreadyWatched(rec)}
-                                                                >
-                                                                    <Eye className="h-3 w-3" />
-                                                                    Watched
-                                                                </Button>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    className="h-7 px-2 text-xs gap-1 hover:text-muted-foreground"
-                                                                    onClick={() => handleNotInterested(rec)}
-                                                                >
-                                                                    <EyeOff className="h-3 w-3" />
-                                                                    Hide
-                                                                </Button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-
-                                            {/* Memory Note */}
-                                            {msg.memoryNote && (
-                                                <div className="bg-purple-500/5 border border-purple-500/10 rounded-lg px-3 py-2">
-                                                    <p className="text-xs text-purple-300/90">
-                                                        <Brain className="h-3 w-3 inline mr-1" />
-                                                        {msg.memoryNote}
-                                                    </p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-
-                        {/* Loading indicator */}
-                        {loading && (
-                            <div className="flex gap-3 items-start">
-                                <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
-                                    <Brain className="h-4 w-4 text-purple-400 animate-pulse" />
-                                </div>
-                                <div className="flex items-center gap-2 py-2">
-                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                                    <span className="text-sm text-muted-foreground">
-                                        Searching memory and finding matches...
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Error */}
-                        {error && (
-                            <div className="bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2 text-xs text-destructive">
-                                {error}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Input */}
-                    <div className="border-t border-border/50 p-3">
-                        <form
-                            onSubmit={(e) => {
-                                e.preventDefault();
-                                handleSend();
-                            }}
-                            className="flex gap-2"
-                        >
-                            <Input
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                placeholder="Tell me what you're in the mood for..."
-                                className="bg-background/50"
-                                disabled={loading}
-                            />
-                            <Button
-                                type="submit"
-                                variant="gradient"
-                                size="sm"
-                                disabled={!input.trim() || loading}
-                                className="px-4"
-                            >
-                                {loading ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                    <Send className="h-4 w-4" />
-                                )}
-                            </Button>
-                        </form>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
-    );
+const StreamedText = ({ text, animate }: { text: string; animate: boolean }) => {
+  const { visible, done } = useStreamedText(text, animate);
+  if (!animate) return <p className="text-[15px] leading-relaxed text-foreground/90">{text}</p>;
+  return (
+    <p className="text-[15px] leading-relaxed text-foreground/90">
+      {visible.map((tok, i) => (
+        <span key={i} className="stream-word">
+          {tok}
+        </span>
+      ))}
+      {!done && <span className="stream-caret" aria-hidden />}
+    </p>
+  );
 };
+
+const QUICK_SUGGESTIONS = [
+  "Something dark and psychological like Black Mirror",
+  "A feel-good comedy for tonight",
+  "Similar to shows I've loved before",
+  "Something short I can finish in one sitting",
+];
+
+const BackboardChat = ({ session, watchedShows, region }: BackboardChatProps) => {
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  const { loading, error, getRecommendations, sendFeedback } = useBackboard(session);
+
+  // Auto-scroll to bottom whenever a new message appears
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, loading]);
+
+  const submit = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || loading) return;
+
+    // Client-side guardrail — server enforces the same rules too.
+    const check = moderateInput(trimmed);
+    if (!check.ok) {
+      toast({
+        title: "That one's off-limits",
+        description: check.message ?? "Please rephrase your request.",
+        variant: "destructive",
+        duration: 2500,
+      });
+      return;
+    }
+
+    setInput("");
+
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: trimmed,
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, userMsg]);
+
+    const recs = await getRecommendations({ message: trimmed, watchedShows, region });
+
+    const assistantMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content:
+        recs.length > 0
+          ? `Here are ${recs.length} picks based on what I remember about your taste.`
+          : "I couldn't parse specific recommendations this time — mind trying that again with a bit more detail?",
+      recommendations: recs.length > 0 ? recs : undefined,
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, assistantMsg]);
+  };
+
+  const handleRate = async (rec: BackboardRecommendation, rating: number) => {
+    const ok = await sendFeedback({
+      feedbackType: "rating",
+      title: rec.title,
+      rating,
+      reason: rating >= 4 ? `Liked the ${rec.genre} style` : undefined,
+    });
+    if (ok) {
+      toast({
+        title: rating >= 4 ? "Saved to memory" : "Noted",
+        description: `Your ${rating >= 4 ? "love" : "dislike"} for "${rec.title}" is stored.`,
+        duration: 2500,
+      });
+    }
+  };
+
+  const handleWatched = async (rec: BackboardRecommendation) => {
+    const ok = await sendFeedback({ feedbackType: "watched", title: rec.title });
+    if (ok) {
+      toast({ title: "Noted", description: `"${rec.title}" marked as watched.`, duration: 2500 });
+    }
+  };
+
+  const handleHide = async (rec: BackboardRecommendation) => {
+    const ok = await sendFeedback({ feedbackType: "not_interested", title: rec.title });
+    if (ok) {
+      toast({ title: "Got it", description: `Won't suggest "${rec.title}" again.`, duration: 2500 });
+    }
+  };
+
+  const isEmpty = messages.length === 0 && !loading;
+  const lastAssistantId = [...messages].reverse().find((m) => m.role === "assistant")?.id;
+
+  return (
+    <div className="relative">
+      {/* Empty state — big centered orb, greeting, primary input */}
+      {isEmpty ? (
+        <div className="flex flex-col items-center py-8">
+          <Orb size={104} halo />
+          <h2 className="mt-8 font-display text-3xl md:text-4xl font-semibold tracking-[-0.02em] text-center">
+            Ready when you are.
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground text-center max-w-md">
+            Tell me what you're in the mood for. I remember your taste across sessions.
+          </p>
+
+          <div className="w-full max-w-xl mt-8">
+            <ChatInput
+              value={input}
+              onChange={setInput}
+              onSubmit={() => submit(input)}
+              loading={loading}
+              autoFocus
+            />
+            <div className="mt-4 flex flex-wrap gap-2 justify-center">
+              {QUICK_SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => submit(s)}
+                  disabled={loading}
+                  className="text-xs px-3 py-1.5 rounded-full border border-border/70 bg-card/50 text-muted-foreground hover:text-foreground hover:bg-card hover:border-border transition-colors disabled:opacity-50"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Conversation state — messages scroll, input pinned below */
+        <div className="rounded-2xl border border-border/70 bg-card/40 backdrop-blur-xl overflow-hidden">
+          <div
+            ref={scrollRef}
+            className="h-[560px] overflow-y-auto px-5 py-6 space-y-6 scroll-smooth"
+          >
+            {messages.map((msg) => (
+              <div key={msg.id}>
+                {msg.role === "user" ? (
+                  <div className="flex justify-end">
+                    <div className="max-w-[80%] rounded-2xl rounded-tr-md bg-secondary/70 border border-border/60 px-4 py-2.5">
+                      <p className="text-[15px] leading-relaxed">{msg.content}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-3 items-start">
+                    <Orb size={28} className="shrink-0 mt-1" />
+                    <div className="flex-1 min-w-0 space-y-4">
+                      <StreamedText text={msg.content} animate={msg.id === lastAssistantId} />
+
+                      {msg.recommendations && msg.recommendations.length > 0 && (
+                        <div className="grid gap-3">
+                          {msg.recommendations.map((rec, i) => (
+                            <div
+                              key={i}
+                              className="rec-in rounded-xl border border-border/60 bg-background/40 p-4 space-y-3 hover:border-border transition-colors"
+                              style={{ animationDelay: `${300 + i * 90}ms` }}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {rec.type === "Series" ? (
+                                    <Tv className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  ) : (
+                                    <Film className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  )}
+                                  <h4 className="font-medium text-[15px] truncate">{rec.title}</h4>
+                                </div>
+                                <div className="flex items-center gap-1 text-foreground/80 shrink-0">
+                                  <Star className="h-3.5 w-3.5 fill-current" />
+                                  <span className="text-xs font-medium tabular-nums">
+                                    {rec.rating}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex gap-1.5 flex-wrap">
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] h-5 font-normal bg-secondary/70"
+                                >
+                                  {rec.type}
+                                </Badge>
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] h-5 font-normal border-border/70"
+                                >
+                                  {rec.genre}
+                                </Badge>
+                              </div>
+
+                              <p className="text-sm text-muted-foreground leading-relaxed">
+                                {rec.description}
+                              </p>
+
+                              {rec.matchReason && (
+                                <p className="text-xs text-muted-foreground/80 border-l-2 border-primary/40 pl-3 py-0.5">
+                                  <span className="font-medium text-foreground/70">Why:</span>{" "}
+                                  {rec.matchReason}
+                                </p>
+                              )}
+
+                              <div className="flex items-center gap-0.5 pt-1 -mx-1.5">
+                                <FeedbackButton icon={ThumbsUp} label="Love it" onClick={() => handleRate(rec, 5)} />
+                                <FeedbackButton icon={ThumbsDown} label="Not for me" onClick={() => handleRate(rec, 1)} />
+                                <FeedbackButton icon={Eye} label="Watched" onClick={() => handleWatched(rec)} />
+                                <FeedbackButton icon={EyeOff} label="Hide" onClick={() => handleHide(rec)} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {loading && (
+              <div className="flex gap-3 items-center">
+                <Orb size={28} className="shrink-0" />
+                <TypingDots />
+              </div>
+            )}
+
+            {error && !loading && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {error}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-border/60 p-3 bg-background/30">
+            <ChatInput
+              value={input}
+              onChange={setInput}
+              onSubmit={() => submit(input)}
+              loading={loading}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ─── small internal components ──────────────────────────────────── */
+
+const ChatInput = ({
+  value,
+  onChange,
+  onSubmit,
+  loading,
+  autoFocus,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: () => void;
+  loading: boolean;
+  autoFocus?: boolean;
+}) => (
+  <form
+    onSubmit={(e) => {
+      e.preventDefault();
+      onSubmit();
+    }}
+    className="relative flex items-center rounded-xl border border-border/70 bg-background/60 focus-within:border-primary/50 focus-within:bg-background/80 transition-colors"
+  >
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="Tell me what you're in the mood for…"
+      disabled={loading}
+      autoFocus={autoFocus}
+      className="flex-1 bg-transparent px-4 py-3 text-[15px] placeholder:text-muted-foreground/60 outline-none disabled:opacity-50"
+    />
+    <button
+      type="submit"
+      disabled={!value.trim() || loading}
+      aria-label="Send"
+      className="mr-1.5 h-9 w-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/70 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+    >
+      <Send className="h-4 w-4" />
+    </button>
+  </form>
+);
+
+const TypingDots = () => (
+  <div className="flex items-center gap-1 h-6">
+    {[0, 1, 2].map((i) => (
+      <span
+        key={i}
+        className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-pulse"
+        style={{ animationDelay: `${i * 150}ms`, animationDuration: "1s" }}
+      />
+    ))}
+  </div>
+);
+
+const FeedbackButton = ({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: typeof ThumbsUp;
+  label: string;
+  onClick: () => void;
+}) => (
+  <Button
+    type="button"
+    variant="ghost"
+    size="sm"
+    onClick={onClick}
+    className="h-7 px-2 text-xs gap-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary/70"
+  >
+    <Icon className="h-3 w-3" />
+    {label}
+  </Button>
+);
 
 export default BackboardChat;

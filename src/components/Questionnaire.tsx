@@ -1,16 +1,9 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { ChevronLeft, Loader2, Check } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronLeft, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-
-interface QuestionnaireProps {
-  onComplete: (preferences: any) => void;
-}
 
 interface Question {
   id: string;
@@ -19,7 +12,18 @@ interface Question {
   options: string[];
 }
 
-const defaultQuestion: Question = {
+type Answer = string | string[];
+
+interface HistoryEntry {
+  question: Question;
+  answer: Answer;
+}
+
+interface QuestionnaireProps {
+  onComplete: (preferences: unknown) => void;
+}
+
+const FIRST_QUESTION: Question = {
   id: "mood",
   question: "How is your day going so far?",
   type: "radio",
@@ -31,100 +35,91 @@ const defaultQuestion: Question = {
     "Not so great, having a rough day.",
     "Could be better, thanks for asking.",
     "I'm feeling tired or overwhelmed.",
-    "Excited and productive today"
-  ]
+    "Excited and productive today",
+  ],
+};
+
+/** All the questionnaire state lives here — persisted as one blob. */
+const STATE_KEY = "questionnaire-state";
+
+interface PersistedState {
+  history: HistoryEntry[];
+  current: Question;
+  answer: Answer;
+  confidence: number;
+}
+
+const loadState = (): PersistedState => {
+  const saved = sessionStorage.getItem(STATE_KEY);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      /* fall through */
+    }
+  }
+  return { history: [], current: FIRST_QUESTION, answer: "", confidence: 10 };
 };
 
 const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
   const { toast } = useToast();
-  
-  // Restore state from sessionStorage
-  const [conversationHistory, setConversationHistory] = useState<Array<{ question: Question; answer: any }>>(() => {
-    const saved = sessionStorage.getItem('questionnaire-history');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [currentQuestion, setCurrentQuestion] = useState<Question>(() => {
-    const saved = sessionStorage.getItem('questionnaire-current');
-    return saved ? JSON.parse(saved) : defaultQuestion;
-  });
-  const [currentAnswer, setCurrentAnswer] = useState<string | string[]>(() => {
-    const saved = sessionStorage.getItem('questionnaire-answer');
-    return saved ? JSON.parse(saved) : "";
-  });
-  const [confidence, setConfidence] = useState<number>(() => {
-    const saved = sessionStorage.getItem('questionnaire-confidence');
-    return saved ? JSON.parse(saved) : 10;
-  });
+  const [state, setState] = useState<PersistedState>(loadState);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Persist state to sessionStorage
   useEffect(() => {
-    sessionStorage.setItem('questionnaire-history', JSON.stringify(conversationHistory));
-  }, [conversationHistory]);
+    sessionStorage.setItem(STATE_KEY, JSON.stringify(state));
+  }, [state]);
 
-  useEffect(() => {
-    sessionStorage.setItem('questionnaire-current', JSON.stringify(currentQuestion));
-  }, [currentQuestion]);
+  const { history, current, answer, confidence } = state;
 
-  useEffect(() => {
-    sessionStorage.setItem('questionnaire-answer', JSON.stringify(currentAnswer));
-  }, [currentAnswer]);
+  const canProceed = Array.isArray(answer) ? answer.length > 0 : answer !== "";
 
-  useEffect(() => {
-    sessionStorage.setItem('questionnaire-confidence', JSON.stringify(confidence));
-  }, [confidence]);
+  const setAnswer = (a: Answer) => setState((s) => ({ ...s, answer: a }));
 
-  const handleAnswerChange = (value: string | string[]) => {
-    setCurrentAnswer(value);
+  const toggleCheckbox = (option: string) => {
+    if (!Array.isArray(answer)) return;
+    setAnswer(answer.includes(option) ? answer.filter((o) => o !== option) : [...answer, option]);
   };
 
   const handleNext = async () => {
-    if (!currentAnswer || (Array.isArray(currentAnswer) && currentAnswer.length === 0)) {
-      return;
-    }
-
+    if (!canProceed) return;
     setIsLoading(true);
-    const newHistory = [...conversationHistory, { question: currentQuestion, answer: currentAnswer }];
-    setConversationHistory(newHistory);
+
+    const nextHistory = [...history, { question: current, answer }];
 
     try {
-      const { data, error } = await supabase.functions.invoke('get-next-question', {
-        body: { conversationHistory: newHistory.map(h => ({ question: h.question.question, answer: h.answer })) }
+      const { data, error } = await supabase.functions.invoke("get-next-question", {
+        body: {
+          conversationHistory: nextHistory.map((h) => ({
+            question: h.question.question,
+            answer: h.answer,
+          })),
+        },
       });
-
       if (error) throw error;
 
-      // Update confidence from AI response
-      if (data.confidence !== undefined) {
-        setConfidence(data.confidence);
+      if (data.ready) {
+        sessionStorage.removeItem(STATE_KEY);
+        onComplete(data.preferences);
+        return;
       }
 
-      if (data.ready) {
-        // AI is confident, clear saved state and generate recommendations
-        sessionStorage.removeItem('questionnaire-history');
-        sessionStorage.removeItem('questionnaire-current');
-        sessionStorage.removeItem('questionnaire-answer');
-        sessionStorage.removeItem('questionnaire-confidence');
-        onComplete(data.preferences);
-      } else if (data.needsClarification) {
-        // Show clarification message
-        toast({
-          title: "Let's try again",
-          description: data.message,
-        });
-        setCurrentQuestion(data.nextQuestion);
-        setCurrentAnswer(data.nextQuestion.type === "checkbox" ? [] : "");
-      } else {
-        // Continue with next question
-        setCurrentQuestion(data.nextQuestion);
-        setCurrentAnswer(data.nextQuestion.type === "checkbox" ? [] : "");
+      if (data.needsClarification) {
+        toast({ title: "Let's try again", description: data.message });
       }
-    } catch (error) {
-      console.error('Error getting next question:', error);
+
+      setState({
+        history: nextHistory,
+        current: data.nextQuestion,
+        answer: data.nextQuestion.type === "checkbox" ? [] : "",
+        confidence: data.confidence ?? confidence,
+      });
+    } catch (err) {
+      console.error("Error getting next question:", err);
       toast({
-        title: "Error",
-        description: "Failed to process your answer. Please try again.",
-        variant: "destructive"
+        title: "Couldn't process that",
+        description: "Please try again in a moment.",
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -132,176 +127,133 @@ const Questionnaire = ({ onComplete }: QuestionnaireProps) => {
   };
 
   const handleBack = () => {
-    if (conversationHistory.length === 0) return;
-    
-    const newHistory = [...conversationHistory];
-    const lastEntry = newHistory.pop();
-    setConversationHistory(newHistory);
-    
-    if (lastEntry) {
-      setCurrentQuestion(lastEntry.question);
-      setCurrentAnswer(lastEntry.answer);
-    }
+    const last = history[history.length - 1];
+    if (!last) return;
+    setState((s) => ({
+      ...s,
+      history: s.history.slice(0, -1),
+      current: last.question,
+      answer: last.answer,
+    }));
   };
 
-  const canProceed = () => {
-    if (Array.isArray(currentAnswer)) {
-      return currentAnswer.length > 0;
-    }
-    return currentAnswer !== "";
-  };
-
-  // Current question number (1-indexed)
-  // Handle edge case: if current question matches the last answered one (user left mid-transition),
-  // we're still on that question number
-  const lastAnsweredQuestion = conversationHistory[conversationHistory.length - 1]?.question;
-  const isShowingSameAsLast = lastAnsweredQuestion?.id === currentQuestion.id;
-  const questionNumber = isShowingSameAsLast 
-    ? conversationHistory.length 
-    : conversationHistory.length + 1;
+  const questionNumber =
+    history[history.length - 1]?.question.id === current.id ? history.length : history.length + 1;
+  const confidenceLabel =
+    confidence >= 90 ? "Almost ready" : confidence >= 60 ? "Getting there" : "Learning your taste";
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Main content */}
-      <div className="relative">
-        {/* Decorative element */}
-        <div className="absolute -top-4 -left-4 w-24 h-24 bg-primary/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-4 -right-4 w-32 h-32 bg-accent/5 rounded-full blur-3xl" />
-        
-        <div className="relative bg-card/50 backdrop-blur-xl rounded-2xl border border-border/50 p-8 space-y-8">
-          {/* Progress bar showing AI confidence */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-muted-foreground">Question {questionNumber}</span>
-              <span className="text-muted-foreground">
-                {confidence >= 90 ? "Almost ready!" : confidence >= 60 ? "Getting there..." : "Learning your preferences"}
-              </span>
-            </div>
-            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-              <div 
-                className={`h-full rounded-full transition-all duration-700 ease-out ${
-                  confidence >= 90 ? 'bg-green-500' : 'bg-primary'
-                }`}
-                style={{ width: `${confidence}%` }}
-              />
-            </div>
+    <div className="max-w-3xl mx-auto">
+      <div className="rounded-2xl border border-border/60 bg-card/50 backdrop-blur-xl p-8 space-y-8">
+        <div className="space-y-2">
+          <div className="flex justify-between items-center text-xs">
+            <span className="text-muted-foreground">Question {questionNumber}</span>
+            <span className="text-muted-foreground">{confidenceLabel}</span>
           </div>
-          
-          <div className="space-y-3">
-            <h3 className="text-2xl font-bold leading-tight">{currentQuestion.question}</h3>
+          <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
+              style={{ width: `${confidence}%` }}
+            />
           </div>
-          
-          {currentQuestion.type === "radio" ? (
-            <div className="grid gap-3">
-              {currentQuestion.options.map(option => {
-                const isSelected = currentAnswer === option;
-                return (
-                  <button
-                    key={option}
-                    onClick={() => handleAnswerChange(option)}
-                    className={`
-                      relative p-4 rounded-xl text-left transition-colors duration-200
-                      border-2
-                      ${isSelected 
-                        ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
-                        : 'border-border/50 bg-card/50 hover:border-primary/50 hover:bg-card/80'
-                      }
-                    `}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`
-                        w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors
-                        ${isSelected ? 'border-primary' : 'border-muted-foreground/30'}
-                      `}>
-                        {isSelected && (
-                          <div className="w-2.5 h-2.5 rounded-full bg-primary animate-scale-in" />
-                        )}
-                      </div>
-                      <span className={`text-sm ${isSelected ? 'text-foreground font-medium' : 'text-foreground/80'}`}>
-                        {option}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-2 gap-3">
-              {currentQuestion.options.map(option => {
-                const isChecked = Array.isArray(currentAnswer) && currentAnswer.includes(option);
-                return (
-                  <button
-                    key={option}
-                    onClick={() => {
-                      if (Array.isArray(currentAnswer)) {
-                        handleAnswerChange(
-                          isChecked 
-                            ? currentAnswer.filter(item => item !== option)
-                            : [...currentAnswer, option]
-                        );
-                      }
-                    }}
-                    className={`
-                      relative p-4 rounded-xl text-left transition-colors duration-200
-                      border-2
-                      ${isChecked 
-                        ? 'border-primary bg-primary/10 shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
-                        : 'border-border/50 bg-card/50 hover:border-primary/50 hover:bg-card/80'
-                      }
-                    `}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`
-                        w-5 h-5 rounded border-2 flex items-center justify-center transition-colors
-                        ${isChecked ? 'border-primary bg-primary' : 'border-muted-foreground/30'}
-                      `}>
-                        {isChecked && (
-                          <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                      <span className={`text-sm ${isChecked ? 'text-foreground font-medium' : 'text-foreground/80'}`}>
-                        {option}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+        </div>
 
-          <div className="flex items-center justify-between pt-4 border-t border-border/50">
-            <Button
-              variant="ghost"
-              onClick={handleBack}
-              disabled={conversationHistory.length === 0 || isLoading}
-              className="gap-2"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Back
-            </Button>
-            
-            <Button
-              variant="gradient"
-              onClick={handleNext}
-              disabled={!canProceed() || isLoading}
-              className="min-w-32"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Thinking...
-                </>
-              ) : (
-                "Continue →"
-              )}
-            </Button>
-          </div>
+        <h3 className="font-display text-2xl font-semibold tracking-[-0.02em] leading-tight">
+          {current.question}
+        </h3>
+
+        <div className={current.type === "checkbox" ? "grid md:grid-cols-2 gap-2.5" : "grid gap-2.5"}>
+          {current.options.map((option) => {
+            const selected =
+              current.type === "radio"
+                ? answer === option
+                : Array.isArray(answer) && answer.includes(option);
+            return (
+              <OptionButton
+                key={option}
+                label={option}
+                selected={selected}
+                variant={current.type}
+                onClick={() =>
+                  current.type === "radio" ? setAnswer(option) : toggleCheckbox(option)
+                }
+              />
+            );
+          })}
+        </div>
+
+        <div className="flex items-center justify-between pt-2 border-t border-border/60">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleBack}
+            disabled={history.length === 0 || isLoading}
+            className="gap-1.5"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back
+          </Button>
+
+          <Button
+            variant="gradient"
+            onClick={handleNext}
+            disabled={!canProceed || isLoading}
+            className="px-6 h-10 text-sm font-medium min-w-32"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Thinking
+              </>
+            ) : (
+              "Continue"
+            )}
+          </Button>
         </div>
       </div>
     </div>
   );
 };
+
+const OptionButton = ({
+  label,
+  selected,
+  variant,
+  onClick,
+}: {
+  label: string;
+  selected: boolean;
+  variant: "radio" | "checkbox";
+  onClick: () => void;
+}) => (
+  <button
+    onClick={onClick}
+    className={`relative rounded-xl border p-4 text-left transition-colors ${
+      selected
+        ? "border-primary/60 bg-primary/5"
+        : "border-border/60 bg-background/40 hover:border-border hover:bg-background/60"
+    }`}
+  >
+    <div className="flex items-center gap-3">
+      <span
+        className={`flex h-5 w-5 items-center justify-center border-2 shrink-0 transition-colors ${
+          variant === "radio" ? "rounded-full" : "rounded"
+        } ${selected ? "border-primary bg-primary/10" : "border-muted-foreground/30"}`}
+      >
+        {selected &&
+          (variant === "radio" ? (
+            <span className="h-2 w-2 rounded-full bg-primary" />
+          ) : (
+            <Check className="h-3 w-3 text-primary" strokeWidth={3} />
+          ))}
+      </span>
+      <span
+        className={`text-sm ${selected ? "text-foreground font-medium" : "text-foreground/80"}`}
+      >
+        {label}
+      </span>
+    </div>
+  </button>
+);
 
 export default Questionnaire;

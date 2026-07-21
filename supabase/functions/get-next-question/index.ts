@@ -1,11 +1,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { corsHeaders as buildCorsHeaders } from "../_shared/cors.ts";
+import { rateLimit, callerId } from "../_shared/redis.ts";
 
 // Input validation schema
 const conversationEntrySchema = z.object({
@@ -18,11 +15,29 @@ const nextQuestionRequestSchema = z.object({
 });
 
 serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req);
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Rate limit BEFORE any expensive work (LLM call), so an over-limit
+    // request costs us nothing.
+    const rl = await rateLimit(callerId(req), 20, 60);
+    if (!rl.allowed) {
+      return new Response(
+        JSON.stringify({ error: 'Too many requests. Please wait a moment and try again.' }),
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+            'Retry-After': String(rl.resetSeconds),
+          },
+        }
+      );
+    }
+
     const body = await req.json();
 
     // Validate input
@@ -41,10 +56,12 @@ serve(async (req) => {
       entryCount: conversationHistory.length
     });
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
+    if (!OPENROUTER_API_KEY) {
+      throw new Error('OPENROUTER_API_KEY is not configured');
     }
+    // Model is configurable via the OPENROUTER_MODEL secret (no redeploy needed to change it).
+    const OPENROUTER_MODEL = Deno.env.get('OPENROUTER_MODEL') ?? 'google/gemini-3-flash-preview';
 
     const systemPrompt = `You are an intelligent Netflix recommendation questionnaire AI. Your role is to conduct a natural, adaptive conversation to understand user preferences and determine when you have enough information to make confident recommendations.
 
@@ -214,14 +231,16 @@ ${conversationHistory.map((entry: any, idx: number) => `${idx + 1}. Q: ${entry.q
 
 What should I do next?`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://smart-netflix-recommendations.app',
+        'X-Title': 'Smart Netflix Recommendations',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3.0-flash',
+        model: OPENROUTER_MODEL,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -232,8 +251,8 @@ What should I do next?`;
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI gateway error:', response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+      console.error('OpenRouter API error:', response.status, errorText);
+      throw new Error(`OpenRouter API error: ${response.status}`);
     }
 
     const data = await response.json();

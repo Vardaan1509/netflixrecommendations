@@ -1,13 +1,20 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { corsHeaders as buildCorsHeaders } from "../_shared/cors.ts";
+import { rateLimit, callerId } from "../_shared/redis.ts";
 
 const BACKBOARD_BASE_URL = 'https://app.backboard.io/api';
+
+// Request body validation. Everything is optional — the function falls back to
+// a generic prompt when nothing is supplied — but bounds every field.
+const recommendRequestSchema = z.object({
+  message: z.string().max(500).optional(),
+  preferences: z.record(z.unknown()).optional(),
+  watchedShows: z.array(z.string().max(200)).max(100).optional(),
+  region: z.string().max(100).optional(),
+});
 
 /**
  * Backboard-powered recommendation Edge Function
@@ -20,11 +27,28 @@ const BACKBOARD_BASE_URL = 'https://app.backboard.io/api';
  * 5. Return personalized recommendations
  */
 serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req);
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Rate limit BEFORE hitting Backboard / building prompts.
+    const rl = await rateLimit(callerId(req), 20, 60);
+    if (!rl.allowed) {
+      return new Response(
+        JSON.stringify({ error: 'Too many requests. Please wait a moment and try again.' }),
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+            'Retry-After': String(rl.resetSeconds),
+          },
+        }
+      );
+    }
+
     const BACKBOARD_API_KEY = Deno.env.get('BACKBOARD_API_KEY')?.trim();
     const configuredAssistantId = Deno.env.get('BACKBOARD_ASSISTANT_ID')?.trim();
 
@@ -59,8 +83,34 @@ serve(async (req) => {
       );
     }
 
-    // Parse request body
-    const { message, preferences, watchedShows, region } = await req.json();
+    // Parse and validate request body
+    const rawBody = await req.json().catch(() => null);
+    const validation = recommendRequestSchema.safeParse(rawBody);
+    if (!validation.success) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid input data', details: validation.error.format() }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const { message, preferences, watchedShows, region } = validation.data;
+
+    // ── Server-side moderation ────────────────────────────────────────
+    // Client enforces the same rules for fast feedback, but the client
+    // can be bypassed by hitting this URL directly, so we re-check here.
+    if (typeof message === 'string' && message.trim().length > 0) {
+      const check = moderateMessage(message);
+      if (!check.ok) {
+        console.warn('Moderation blocked message:', check.reason);
+        return new Response(
+          JSON.stringify({
+            error: 'moderation_blocked',
+            reason: check.reason,
+            message: check.message ?? 'Request blocked by moderation.',
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     // Look up user's Backboard thread ID
     const { data: profile } = await supabaseClient
@@ -321,6 +371,61 @@ function buildPreferencesMessage(
   ].filter(Boolean);
 
   return parts.join('\n');
+}
+
+// ── Moderation ──────────────────────────────────────────────────────
+// Server-side twin of src/lib/moderation.ts. Duplicated on purpose:
+// edge functions run on Deno and can't import the browser bundle.
+
+const MAX_INPUT_LENGTH = 500;
+
+const INJECTION_PATTERNS: RegExp[] = [
+  /\bignore\s+(all\s+)?(previous|prior|above)\s+(instructions|prompts|rules)\b/i,
+  /\bdisregard\s+(all\s+)?(previous|prior|above)\b/i,
+  /\byou\s+are\s+now\s+(a|an|the)\s+/i,
+  /\bpretend\s+(to\s+be|you\s+are)\b/i,
+  /\bact\s+as\s+(a|an|if)\b/i,
+  /\bforget\s+(everything|all|your|the)\s+(you|previous|prior|instructions)\b/i,
+  /\bsystem\s+prompt\b/i,
+  /\breveal\s+your\s+(instructions|prompt|rules|system)\b/i,
+  /\bjailbreak\b/i,
+  /\bDAN\s+mode\b/i,
+];
+
+const PROFANITY_LIST = [
+  'fuck', 'shit', 'bitch', 'asshole', 'bastard', 'cunt',
+  'dick', 'pussy', 'faggot', 'retard', 'nigger', 'nigga',
+];
+
+const buildProfanityRegex = () => {
+  const leet: Record<string, string> = {
+    a: '[a@4]', e: '[e3]', i: '[i1!|]', o: '[o0]', s: '[s$5]', t: '[t7]',
+  };
+  const patterns = PROFANITY_LIST.map((word) => {
+    const body = [...word].map((ch) => `${leet[ch] ?? ch}+`).join('[\\W_]*');
+    return `\\b${body}\\b`;
+  });
+  return new RegExp(`(${patterns.join('|')})`, 'i');
+};
+
+const PROFANITY_REGEX = buildProfanityRegex();
+
+function moderateMessage(raw: string): {
+  ok: boolean;
+  reason?: 'too_long' | 'prompt_injection' | 'profanity';
+  message?: string;
+} {
+  const text = raw.trim();
+  if (text.length > MAX_INPUT_LENGTH) {
+    return { ok: false, reason: 'too_long', message: `Keep it under ${MAX_INPUT_LENGTH} characters.` };
+  }
+  for (const p of INJECTION_PATTERNS) {
+    if (p.test(text)) return { ok: false, reason: 'prompt_injection', message: "Let's keep it about movies and shows." };
+  }
+  if (PROFANITY_REGEX.test(text)) {
+    return { ok: false, reason: 'profanity', message: "Let's keep the conversation friendly." };
+  }
+  return { ok: true };
 }
 
 function parseRecommendations(response: string): {

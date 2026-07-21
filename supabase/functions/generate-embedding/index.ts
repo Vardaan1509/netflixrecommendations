@@ -1,11 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { corsHeaders as buildCorsHeaders } from "../_shared/cors.ts";
 
 /**
  * STEP 2: Embedding Generation Edge Function
@@ -25,6 +21,7 @@ const corsHeaders = {
  */
 
 serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req);
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -74,31 +71,34 @@ serve(async (req) => {
 
     console.log('Generating embedding for user:', user.id, 'title:', title, 'rating:', rating);
 
-    // Generate embedding using OpenAI API
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openaiApiKey) {
-      throw new Error('OPENAI_API_KEY is not configured');
+    // Generate embedding via OpenRouter's embeddings endpoint
+    const openrouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
+    if (!openrouterApiKey) {
+      throw new Error('OPENROUTER_API_KEY is not configured');
     }
 
     // Create embedding text by combining title and description
     const embeddingText = `${title}: ${description}`;
 
-    const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+    // NOTE: must stay a 1536-dim model to match the show_embeddings vector(1536) column.
+    const embeddingResponse = await fetch('https://openrouter.ai/api/v1/embeddings', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
+        'Authorization': `Bearer ${openrouterApiKey}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://smart-netflix-recommendations.app',
+        'X-Title': 'Smart Netflix Recommendations',
       },
       body: JSON.stringify({
-        model: 'text-embedding-3-small', // Creates 1536-dimensional vectors
+        model: 'openai/text-embedding-3-small', // Creates 1536-dimensional vectors
         input: embeddingText,
       }),
     });
 
     if (!embeddingResponse.ok) {
       const errorText = await embeddingResponse.text();
-      console.error('OpenAI API error:', embeddingResponse.status, errorText);
-      throw new Error(`OpenAI API error: ${embeddingResponse.status}`);
+      console.error('OpenRouter API error:', embeddingResponse.status, errorText);
+      throw new Error(`OpenRouter API error: ${embeddingResponse.status}`);
     }
 
     const embeddingData = await embeddingResponse.json();

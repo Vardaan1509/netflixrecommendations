@@ -1,143 +1,93 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Star, Film, Tv } from "lucide-react";
-import { useState } from "react";
 
 interface Recommendation {
+  id?: string;
   title: string;
   type: string;
   genre: string;
   description: string;
   matchReason: string;
   rating: string;
-  id?: string;
   user_rating?: number | null;
 }
 
-interface RecommendationCardProps {
+interface Props {
   recommendation: Recommendation;
-  onRate?: (recommendationId: string, rating: number) => void;
-  onWatchedStatus?: (recommendationId: string, watched: boolean, liked?: boolean) => void;
-  isRepeat?: boolean;
+  onRate?: (id: string, rating: number) => void;
 }
 
-const RecommendationCard = ({ recommendation, onRate, onWatchedStatus, isRepeat = false }: RecommendationCardProps) => {
-  const [localRating, setLocalRating] = useState(recommendation.user_rating);
-  const [showWatchedQuestion, setShowWatchedQuestion] = useState(false);
+const RecommendationCard = ({ recommendation, onRate }: Props) => {
+  const [localRating, setLocalRating] = useState(recommendation.user_rating ?? null);
 
-  const handleRate = (rating: number) => {
+  const rate = (rating: number) => {
     setLocalRating(rating);
-    if (onRate && recommendation.id) {
-      onRate(recommendation.id, rating);
-      
-      // Only ask if they watched it if this is a REPEAT recommendation and they rated it 4-5 stars
-      if (rating >= 4 && onWatchedStatus && isRepeat) {
-        setShowWatchedQuestion(true);
-      }
-    }
+    if (recommendation.id) onRate?.(recommendation.id, rating);
   };
 
-  const handleWatchedResponse = (watched: boolean, liked?: boolean) => {
-    if (onWatchedStatus && recommendation.id) {
-      onWatchedStatus(recommendation.id, watched, liked);
-      setShowWatchedQuestion(false);
-    }
-  };
+  const TypeIcon = recommendation.type === "Series" ? Tv : Film;
 
   return (
-    <Card className="group hover:shadow-[var(--shadow-glow)] transition-all duration-300 bg-gradient-to-br from-card to-card/50 backdrop-blur border-border/50 hover:border-primary/50">
-      <CardHeader>
-        <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-lg group-hover:text-primary transition-colors">
-            {recommendation.title}
-          </CardTitle>
-          <div className="flex items-center gap-1 text-accent shrink-0">
-            <Star className="h-4 w-4 fill-current" />
-            <span className="text-sm font-semibold">{recommendation.rating}</span>
-          </div>
+    <div className="rounded-xl border border-border/60 bg-card/50 backdrop-blur p-5 space-y-3 hover:border-border transition-colors">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <TypeIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+          <h3 className="font-medium text-[15px] truncate">{recommendation.title}</h3>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="secondary" className="gap-1">
-            {recommendation.type === "Series" ? <Tv className="h-3 w-3" /> : <Film className="h-3 w-3" />}
-            {recommendation.type}
-          </Badge>
-          <Badge variant="outline">{recommendation.genre}</Badge>
+        <div className="flex items-center gap-1 text-foreground/80 shrink-0">
+          <Star className="h-3.5 w-3.5 fill-current" />
+          <span className="text-xs font-medium tabular-nums">{recommendation.rating}</span>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-sm text-foreground/90">{recommendation.description}</p>
-        <div className="pt-2 border-t border-border/50">
-          <p className="text-xs text-muted-foreground italic">
-            <span className="text-accent font-medium">Why this?</span> {recommendation.matchReason}
-          </p>
+      </div>
+
+      <div className="flex gap-1.5 flex-wrap">
+        <Badge variant="secondary" className="text-[10px] h-5 font-normal">
+          {recommendation.type}
+        </Badge>
+        <Badge variant="outline" className="text-[10px] h-5 font-normal border-border/70">
+          {recommendation.genre}
+        </Badge>
+      </div>
+
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        {recommendation.description}
+      </p>
+
+      <p className="text-xs text-muted-foreground/80 border-l-2 border-primary/40 pl-3 py-0.5">
+        <span className="font-medium text-foreground/70">Why:</span> {recommendation.matchReason}
+      </p>
+
+      {onRate && (
+        <div className="flex items-center gap-1.5 pt-2 border-t border-border/60">
+          <span className="text-xs text-muted-foreground">Rate</span>
+          <div className="flex gap-0.5">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Button
+                key={n}
+                size="sm"
+                variant="ghost"
+                onClick={() => rate(n)}
+                className="h-6 w-6 p-0 hover:bg-transparent"
+                aria-label={`Rate ${n} stars`}
+              >
+                <Star
+                  className={`h-3.5 w-3.5 transition-colors ${
+                    localRating && n <= localRating
+                      ? "fill-foreground/80 text-foreground/80"
+                      : "text-muted-foreground/40 hover:text-foreground/60"
+                  }`}
+                />
+              </Button>
+            ))}
+          </div>
+          {localRating && (
+            <span className="text-xs text-muted-foreground ml-1 tabular-nums">{localRating}/5</span>
+          )}
         </div>
-        {onRate && !showWatchedQuestion && (
-          <div className="flex items-center gap-2 pt-2 border-t border-border/50">
-            <span className="text-xs text-muted-foreground">Rate this:</span>
-            <div className="flex gap-1">
-              {[1, 2, 3, 4, 5].map((rating) => (
-                <Button
-                  key={rating}
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleRate(rating)}
-                  className="h-7 w-7 p-0 hover:scale-110 transition-transform"
-                >
-                  <Star 
-                    className={`h-4 w-4 transition-colors ${
-                      localRating && rating <= localRating 
-                        ? 'fill-accent text-accent' 
-                        : 'text-muted-foreground'
-                    }`} 
-                  />
-                </Button>
-              ))}
-            </div>
-            {localRating && (
-              <span className="text-xs text-accent font-medium ml-1">
-                {localRating}/5
-              </span>
-            )}
-          </div>
-        )}
-        
-        {showWatchedQuestion && (
-          <div className="space-y-3 pt-2 border-t border-border/50">
-            <p className="text-sm text-accent font-medium">
-              You rated {recommendation.title} highly! Have you watched it?
-            </p>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleWatchedResponse(false)}
-                className="flex-1"
-              >
-                Not yet
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleWatchedResponse(true, true)}
-                className="flex-1"
-              >
-                Yes, loved it!
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleWatchedResponse(true, false)}
-                className="flex-1"
-              >
-                Yes, didn't like it
-                
-              </Button>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 };
 

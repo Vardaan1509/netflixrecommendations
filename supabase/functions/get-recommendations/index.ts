@@ -1,13 +1,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { corsHeaders as buildCorsHeaders } from "../_shared/cors.ts";
+import { rateLimit, callerId } from "../_shared/redis.ts";
+import { discoverNetflix, TmdbCandidate, MediaType } from "../_shared/tmdb.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-// Input validation schemas
+// ── Input validation ────────────────────────────────────────────────
 const preferencesSchema = z.object({
   mood: z.string().max(100),
   contentType: z.string().max(50).optional(),
@@ -17,554 +15,309 @@ const preferencesSchema = z.object({
   watchStyle: z.string().max(100),
   language: z.string().max(100),
   underrated: z.string().max(100).optional(),
-  ageRating: z.string().max(100).optional()
+  ageRating: z.string().max(100).optional(),
 });
 
 const recommendationsRequestSchema = z.object({
   preferences: preferencesSchema,
   watchedShows: z.array(z.string().max(200)).max(100),
-  region: z.string().max(100)
+  region: z.string().max(100),
 });
 
+type RatingRow = {
+  title: string;
+  type: string;
+  genre: string;
+  user_rating: number;
+  watched: boolean | null;
+  match_reason: string;
+};
+
+// ── Taste profile from rating history ───────────────────────────────
+// Compact signal for ranking + the LLM: which genres the user loves/dislikes
+// and whether they lean toward series or movies.
+function buildTasteProfile(history: RatingRow[]) {
+  const lovedGenres = new Set<string>();
+  const dislikedGenres = new Set<string>();
+  let series = 0;
+  let movies = 0;
+
+  for (const r of history) {
+    const g = r.genre?.toLowerCase();
+    if (r.user_rating >= 4 && g) lovedGenres.add(g);
+    if (r.user_rating <= 2 && g) dislikedGenres.add(g);
+    if (r.type?.toLowerCase().includes("series")) series += r.user_rating;
+    else movies += r.user_rating;
+  }
+
+  const lean =
+    Math.abs(series - movies) < 3 ? "no strong lean" : series > movies ? "prefers series" : "prefers movies";
+
+  return { lovedGenres, dislikedGenres, lean };
+}
+
+// ── Heuristic candidate scoring ─────────────────────────────────────
+// Cheap, deterministic pre-rank so we hand the LLM a strong shortlist rather
+// than the whole catalog. TMDB rating is the base; genre affinity adjusts it.
+function scoreCandidate(
+  c: TmdbCandidate,
+  prefGenres: Set<string>,
+  lovedGenres: Set<string>,
+  dislikedGenres: Set<string>,
+): number {
+  let score = c.rating; // 0-10 base
+  score += Math.min(c.popularity / 500, 2); // small popularity nudge, capped
+
+  const genresLower = c.genres.map((g) => g.toLowerCase());
+  const hits = (set: Set<string>) =>
+    genresLower.some((g) => [...set].some((s) => g.includes(s) || s.includes(g)));
+
+  if (hits(prefGenres)) score += 3;
+  if (hits(lovedGenres)) score += 2;
+  if (hits(dislikedGenres)) score -= 4;
+
+  return score;
+}
+
+function normalizeTitle(t: string): string {
+  return t.trim().toLowerCase();
+}
+
+function mediaTypesFor(contentType?: string): MediaType[] {
+  const c = (contentType ?? "").toLowerCase();
+  const wantsMovie = /movie|film/.test(c);
+  const wantsSeries = /series|show|tv/.test(c);
+  if (wantsMovie && !wantsSeries) return ["movie"];
+  if (wantsSeries && !wantsMovie) return ["tv"];
+  return ["movie", "tv"];
+}
+
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  const corsHeaders = buildCorsHeaders(req);
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const body = await req.json();
+    // Rate limit BEFORE any expensive work.
+    const rl = await rateLimit(callerId(req), 20, 60);
+    if (!rl.allowed) {
+      return new Response(
+        JSON.stringify({ error: "Too many requests. Please wait a moment and try again." }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": String(rl.resetSeconds) },
+        },
+      );
+    }
 
-    // Validate input
+    const body = await req.json();
     const validation = recommendationsRequestSchema.safeParse(body);
     if (!validation.success) {
-      console.error('Validation error:', validation.error);
       return new Response(
-        JSON.stringify({ error: 'Invalid input data', details: validation.error.format() }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Invalid input data", details: validation.error.format() }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     const { preferences, watchedShows, region } = validation.data;
-    console.log('Recommendation request', {
+    console.log("Recommendation request", {
       timestamp: new Date().toISOString(),
       region,
-      showCount: watchedShows?.length || 0,
-      hasPreferences: !!preferences
+      watchedCount: watchedShows.length,
+      genres: preferences.genres,
     });
 
-    // Get authorization header
-    const authHeader = req.headers.get('authorization');
-    let userId: string | null = null;
-    let ratingHistory: Array<{ title: string; type: string; genre: string; user_rating: number; watched: boolean | null; match_reason: string }> = [];
-    let embeddingBasedCandidates: string[] = []; // STEP 3: Candidates from similarity search
-
+    // ── 1. User context (rating history + past recs to exclude) ──────
+    let ratingHistory: RatingRow[] = [];
     let previouslyRecommended: string[] = [];
 
-    // If user is authenticated, fetch their rating history, embeddings, and previous recommendations
+    const authHeader = req.headers.get("authorization");
     if (authHeader) {
       try {
-        const token = authHeader.replace('Bearer ', '');
-        const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+        const token = authHeader.replace("Bearer ", "");
+        const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
         const supabaseClient = createClient(
-          Deno.env.get('SUPABASE_URL') ?? '',
-          Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-          { global: { headers: { Authorization: authHeader } } }
+          Deno.env.get("SUPABASE_URL") ?? "",
+          Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+          { global: { headers: { Authorization: authHeader } } },
         );
-
         const { data: { user } } = await supabaseClient.auth.getUser(token);
         if (user) {
-          userId = user.id;
-
-          // Fetch ALL past recommendations to avoid repeats
-          const { data: allPastRecs } = await supabaseClient
-            .from('recommendations')
-            .select('title')
-            .eq('user_id', userId);
-
-          if (allPastRecs && allPastRecs.length > 0) {
-            previouslyRecommended = allPastRecs.map(r => r.title);
-          }
-
-          // Fetch user's past recommendations with ratings for learning
-          const { data: pastRecs } = await supabaseClient
-            .from('recommendations')
-            .select('title, type, genre, user_rating, watched, match_reason')
-            .eq('user_id', userId)
-            .not('user_rating', 'is', null)
-            .order('created_at', { ascending: false })
-            .limit(30);
-
-          if (pastRecs && pastRecs.length > 0) {
-            ratingHistory = pastRecs;
-          }
-
-          // STEP 3: Fetch embedding-based candidates using vector similarity
-          // This is the HYBRID MODEL's first layer: mathematical similarity
-          const { data: embeddings } = await supabaseClient
-            .from('show_embeddings')
-            .select('embedding, title')
-            .eq('user_id', userId)
-            .gte('user_rating', 4) // Only use high-rated shows
-            .order('created_at', { ascending: false })
-            .limit(10); // Use top 10 most recent high-rated shows
-
-          if (embeddings && embeddings.length > 0) {
-            console.log(`Found ${embeddings.length} embeddings for similarity search`);
-
-            // For each embedding, find similar shows using cosine similarity
-            // We'll aggregate all similar titles across all user's liked shows
-            const allSimilarTitles = new Set<string>();
-
-            for (const userEmbedding of embeddings) {
-              // Use pgvector's cosine similarity search
-              // This finds shows mathematically similar to what the user loved
-              const { data: similarShows } = await supabaseClient.rpc(
-                'match_show_embeddings',
-                {
-                  query_embedding: userEmbedding.embedding,
-                  match_threshold: 0.7, // 70% similarity threshold
-                  match_count: 20 // Top 20 similar per embedding
-                }
-              );
-
-              if (similarShows) {
-                similarShows.forEach((show: { title: string }) => {
-                  // Don't include the same show, watched shows, or previously recommended
-                  if (
-                    show.title !== userEmbedding.title &&
-                    !watchedShows.includes(show.title) &&
-                    !previouslyRecommended.includes(show.title)
-                  ) {
-                    allSimilarTitles.add(show.title);
-                  }
-                });
-              }
-            }
-
-            embeddingBasedCandidates = Array.from(allSimilarTitles).slice(0, 30);
-            console.log(`Generated ${embeddingBasedCandidates.length} embedding-based candidates`);
-          } else {
-            console.log('No embeddings found for user, will use pure AI recommendations');
-          }
+          const [{ data: allRecs }, { data: ratedRecs }] = await Promise.all([
+            supabaseClient.from("recommendations").select("title").eq("user_id", user.id),
+            supabaseClient
+              .from("recommendations")
+              .select("title, type, genre, user_rating, watched, match_reason")
+              .eq("user_id", user.id)
+              .not("user_rating", "is", null)
+              .order("created_at", { ascending: false })
+              .limit(30),
+          ]);
+          previouslyRecommended = (allRecs ?? []).map((r) => r.title);
+          ratingHistory = (ratedRecs ?? []) as RatingRow[];
         }
-      } catch (error) {
-        console.log('Could not fetch rating history:', error);
+      } catch (err) {
+        console.log("Could not fetch user history:", err);
       }
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    // ── 2. Retrieve real candidates from the Netflix-in-region catalog ─
+    const taste = buildTasteProfile(ratingHistory);
+    const genresToQuery = [...new Set([...preferences.genres, ...taste.lovedGenres])];
+    const mediaTypes = mediaTypesFor(preferences.contentType);
+
+    const pulls: Promise<TmdbCandidate[]>[] = [];
+    for (const mediaType of mediaTypes) {
+      // Genre-targeted pages for relevance...
+      pulls.push(discoverNetflix({ regionName: region, genreNames: genresToQuery, mediaType, page: 1 }));
+      pulls.push(discoverNetflix({ regionName: region, genreNames: genresToQuery, mediaType, page: 2 }));
+      // ...plus a broad popular page so we always have depth even if genres are narrow.
+      pulls.push(discoverNetflix({ regionName: region, genreNames: [], mediaType, page: 1 }));
+    }
+    const pulled = (await Promise.all(pulls)).flat();
+
+    // Dedupe by title.
+    const byTitle = new Map<string, TmdbCandidate>();
+    for (const c of pulled) {
+      if (c.title && c.overview) byTitle.set(normalizeTitle(c.title), c);
     }
 
-    // Known unavailable content in Canada (common false positives)
-    const canadaUnavailableList = region === 'Canada' ? [
-      'The Good Place', 'Parks and Recreation', 'The Office (US)', 'The Office',
-      'Brooklyn Nine-Nine', 'Community', 'Friday Night Lights',
-      'Dungeons & Dragons: Honor Among Thieves', 'Mad Men', 'Breaking Bad',
-      'Better Call Saul', 'The Walking Dead', 'Suits', 'Yellowstone',
-      'South Park', 'Rick and Morty', 'Adventure Time',
-      'ER', '30 Rock', 'Scrubs', 'Arrested Development (earlier seasons)'
-    ] : [];
+    // Exclude what they've watched or already been shown.
+    const exclude = new Set([...watchedShows, ...previouslyRecommended].map(normalizeTitle));
+    const prefGenres = new Set(preferences.genres.map((g) => g.toLowerCase()));
 
-    const systemPrompt = `You are a Netflix recommendation expert with VERIFIED knowledge of regional content catalogs. 
+    const shortlist = [...byTitle.values()]
+      .filter((c) => !exclude.has(normalizeTitle(c.title)))
+      .map((c) => ({ c, score: scoreCandidate(c, prefGenres, taste.lovedGenres, taste.dislikedGenres) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 24)
+      .map((x) => x.c);
 
-🚨🚨🚨 CRITICAL MISSION: ZERO UNAVAILABLE RECOMMENDATIONS 🚨🚨🚨
+    if (shortlist.length === 0) {
+      // Only happens if TMDB is unreachable or the region has no Netflix data.
+      console.error("No candidates after retrieval/exclusion");
+      return new Response(
+        JSON.stringify({ error: "Could not reach the catalog right now. Please try again shortly." }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
-Your #1 priority is REGIONAL AVAILABILITY ACCURACY. A perfect match that's unavailable is USELESS.
+    // ── 3. LLM finalize: pick the best 6 from REAL candidates + explain ─
+    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
+    if (!OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY is not configured");
+    const OPENROUTER_MODEL = Deno.env.get("OPENROUTER_MODEL") ?? "google/gemini-3-flash-preview";
 
-Return EXACTLY 6 recommendations in JSON format with this structure:
+    const shortlistText = shortlist
+      .map(
+        (c, i) =>
+          `${i + 1}. "${c.title}" (${c.year || "n/a"}, ${c.type}) — ${c.genres.join("/") || "n/a"} — TMDB ${c.rating.toFixed(1)}\n   ${c.overview}`,
+      )
+      .join("\n\n");
+
+    const systemPrompt = `You are a Netflix recommendation assistant.
+
+Every title in the CANDIDATES list is verified available on Netflix in the user's region (${region}) — availability is already handled, so you never need to worry about it.
+
+Your job: pick the 6 BEST matches for the user's preferences and mood, and explain each.
+
+STRICT RULES:
+- Choose ONLY from the numbered CANDIDATES. Never invent a title that isn't listed.
+- Copy the title, type, genre, and rating EXACTLY as given for each pick.
+- Ensure variety: at most 2 picks sharing the same primary genre.
+- Write a fresh 2-3 sentence "description" and a 1-sentence "matchReason" tailored to THIS user.
+
+Return JSON exactly:
 {
   "recommendations": [
-    {
-      "title": "Show/Movie Title",
-      "type": "Series" or "Movie",
-      "genre": "Primary Genre",
-      "description": "Brief compelling description (2-3 sentences)",
-      "matchReason": "Why this matches their preferences (1 sentence)",
-      "rating": "8.5" (string format),
-      "availabilityConfidence": "High/Medium" (explain why you're confident it's in ${region})
-    }
+    { "title": "...", "type": "Movie" | "Series", "genre": "...", "description": "...", "matchReason": "...", "rating": "8.4" }
   ]
-}
+}`;
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚨 REGIONAL AVAILABILITY - MULTI-LAYER VERIFICATION PROCESS 🚨
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const tasteText =
+      ratingHistory.length > 0
+        ? `\nTaste signal — loves: ${[...taste.lovedGenres].join(", ") || "n/a"}; dislikes: ${[...taste.dislikedGenres].join(", ") || "n/a"}; ${taste.lean}.`
+        : "";
 
-STEP 1: PRE-SCREENING (BEFORE considering any title)
-✓ Is this a Netflix Original produced/distributed globally? (HIGH CONFIDENCE)
-✓ Is this confirmed available in ${region} based on my knowledge cutoff? (MEDIUM CONFIDENCE)
-✓ Is this from a US-only network (NBC, AMC, HBO, FX, etc.)? (AUTO-EXCLUDE for Canada)
-✓ Is this a recent theatrical release? (HIGH RISK - usually unavailable in Canada)
+    const userPrompt = `USER PREFERENCES
+- Mood: ${preferences.mood}
+- Content type: ${preferences.contentType || "both"}
+- Genres they want: ${preferences.genres.join(", ")}
+- Watch time: ${preferences.watchTime}
+- Watch style: ${preferences.watchStyle}
+- Language: ${preferences.language}
+- Watching with: ${preferences.company}
+- Underrated preference: ${preferences.underrated || "no preference"}
+- Age rating: ${preferences.ageRating || "no preference"}${tasteText}
 
-STEP 2: EXPLICIT EXCLUSION LIST FOR ${region}
-${canadaUnavailableList.length > 0 ? `❌ NEVER RECOMMEND THESE (Known unavailable in ${region}):
-${canadaUnavailableList.join(', ')}
+CANDIDATES (all available on Netflix ${region}):
+${shortlistText}
 
-These are frequently recommended but NOT in ${region}'s catalog. DO NOT include them.` : ''}
+Pick the 6 best for this user and return the JSON.`;
 
-STEP 3: CONSERVATIVE DECISION MAKING
-- If confidence is "High" → Include with explanation
-- If confidence is "Medium" → Only include if it's a major Netflix Original
-- If confidence is "Low" or "Uncertain" → EXCLUDE, find alternative
-
-STEP 4: SAFE FALLBACK STRATEGY
-When in doubt, ONLY recommend from this VERIFIED global Netflix Originals list:
-✓ Squid Game, Stranger Things, The Crown, Wednesday, Bridgerton
-✓ Money Heist (La Casa de Papel), Dark, The Witcher, Ozark
-✓ Lupin, Sex Education, You, Cobra Kai, The Queen's Gambit
-✓ Arcane, Black Mirror, Orange is the New Black, Narcos
-✓ The Umbrella Academy, Shadow and Bone, Virgin River
-
-${region === 'Canada' ? `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🍁 CANADA-SPECIFIC CRITICAL WARNINGS 🍁
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-⚠️ Canada's Netflix catalog is FUNDAMENTALLY DIFFERENT from US Netflix
-⚠️ DO NOT assume US availability = Canada availability (this is WRONG)
-
-❌ AUTO-EXCLUDE Categories for Canada:
-1. NBC Shows (The Office, Parks & Rec, The Good Place, etc.) → NOT on Netflix Canada
-2. AMC Shows (Walking Dead, Mad Men, Breaking Bad) → NOT on Netflix Canada  
-3. Paramount+/Peacock/Hulu Originals → NOT on Netflix Canada
-4. Recent theatrical releases → Usually NOT on Netflix Canada
-5. Most HBO content → NOT on Netflix Canada
-
-✅ SAFE BETS for Canada:
-1. Netflix Originals (globally distributed)
-2. International content (Korean, British, Spanish shows)
-3. Older Netflix-licensed content confirmed in multiple regions
-4. Canadian productions on Netflix
-
-🔍 VERIFICATION CHECKLIST (Ask yourself for EACH recommendation):
-□ Is this a Netflix Original? (If yes → likely safe)
-□ Is this from NBC/AMC/HBO/FX? (If yes → EXCLUDE for Canada)
-□ Was this in theaters recently? (If yes → probably not available)
-□ Can I explain WHY this is in Canada's catalog? (If no → EXCLUDE)
-
-⚡ GOLDEN RULE: When uncertain about Canada availability, choose a different title.
-   There are thousands of options - pick ones you're CERTAIN about.
-` : ''}
-
-CONTENT TYPE REQUIREMENTS:
-- User preference: ${preferences.contentType || 'both'}
-- STRICTLY follow their content type preference
-- If "Movies only" → recommend ONLY movies
-- If "Series only" → recommend ONLY series  
-- If "Both" → provide a mix
-
-🎯 GENRE DIVERSITY REQUIREMENT (CRITICAL):
-- User selected these genres: ${preferences.genres.join(', ')}
-- DO NOT focus heavily on just one or two genres
-- SPREAD recommendations across MULTIPLE genres from their list
-- If they like Comedy AND Animation, don't give 4 animated comedies - give variety (1-2 comedies, 1-2 animated shows, 1-2 other genres)
-- Maximum 2 recommendations per genre category
-- Ensure diverse sub-genres and styles within their preferences
-
-🎬 CONTENT MATURITY REQUIREMENT:
-- User's age rating preference: ${preferences.ageRating || 'No preference'}
-- If "Family-friendly" → ONLY G, PG, TV-G, TV-PG rated content
-- If "Teen and up" → PG-13, TV-14 and below
-- If "Mature content" → All ratings including R, TV-MA
-- If "No preference" → Any rating is fine
-
-Additional Focus:
-- Match their specific mood: ${preferences.mood}
-- Consider watch history to avoid repeats and find similar content
-- Balance between their preferences while maintaining variety
-- Prioritize HIGH-CONFIDENCE regional availability over perfect preference matching`;
-
-    // ============= IMPROVEMENT #2: RICHER CONTEXT WITH REASONS =============
-    // ============= IMPROVEMENT #3: RATING PATTERN ANALYSIS =============
-    // ============= IMPROVEMENT #4: WATCHED STATUS AS STRONG SIGNAL =============
-    let ratingHistoryText = '';
-    let patternAnalysisText = '';
-    let watchedSignalsText = '';
-
-    if (ratingHistory.length > 0) {
-      // Weight recent ratings more heavily (last 10 vs older ones)
-      const recentRatings = ratingHistory.slice(0, 10);
-      const olderRatings = ratingHistory.slice(10);
-
-      // ============= IMPROVEMENT #2: Richer Context =============
-      // Separate by rating with WHY they liked/disliked (match_reason)
-      const loved = ratingHistory.filter(r => r.user_rating >= 4);
-      const disliked = ratingHistory.filter(r => r.user_rating <= 2);
-
-      let richContextText = '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
-      richContextText += '📊 DETAILED USER PREFERENCE ANALYSIS (USE THIS TO LEARN)\n';
-      richContextText += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
-
-      if (loved.length > 0) {
-        richContextText += '✅ HIGH-RATED CONTENT (4-5 stars) - PRIORITIZE THESE PATTERNS:\n';
-        loved.forEach(r => {
-          richContextText += `   • "${r.title}" (${r.type}, ${r.genre}) - ⭐${r.user_rating}/5\n`;
-          richContextText += `     WHY THEY LOVED IT: ${r.match_reason}\n`;
-        });
-        richContextText += '\n';
-      }
-
-      if (disliked.length > 0) {
-        richContextText += '❌ LOW-RATED CONTENT (1-2 stars) - AVOID THESE PATTERNS:\n';
-        disliked.forEach(r => {
-          richContextText += `   • "${r.title}" (${r.type}, ${r.genre}) - ⭐${r.user_rating}/5\n`;
-          richContextText += `     WHY THEY DISLIKED IT: ${r.match_reason}\n`;
-        });
-        richContextText += '\n';
-      }
-
-      richContextText += '⚡ RECENT PREFERENCES (Last 10 ratings - weight these MORE heavily):\n';
-      recentRatings.forEach(r => {
-        richContextText += `   • "${r.title}" - ⭐${r.user_rating}/5 (${r.type}, ${r.genre})\n`;
-      });
-
-      ratingHistoryText = richContextText;
-
-      // ============= IMPROVEMENT #3: Rating Pattern Analysis =============
-      // Calculate genre statistics
-      const genreStats: { [key: string]: { total: number; count: number } } = {};
-      ratingHistory.forEach(r => {
-        if (!genreStats[r.genre]) {
-          genreStats[r.genre] = { total: 0, count: 0 };
-        }
-        genreStats[r.genre].total += r.user_rating;
-        genreStats[r.genre].count += 1;
-      });
-
-      const genreAverages = Object.entries(genreStats)
-        .map(([genre, stats]) => ({
-          genre,
-          avg: stats.total / stats.count,
-          count: stats.count
-        }))
-        .sort((a, b) => b.avg - a.avg);
-
-      // Calculate content type statistics
-      const seriesRatings = ratingHistory.filter(r => r.type.toLowerCase().includes('series'));
-      const movieRatings = ratingHistory.filter(r => r.type.toLowerCase().includes('movie'));
-
-      const seriesAvg = seriesRatings.length > 0
-        ? seriesRatings.reduce((sum, r) => sum + r.user_rating, 0) / seriesRatings.length
-        : 0;
-      const movieAvg = movieRatings.length > 0
-        ? movieRatings.reduce((sum, r) => sum + r.user_rating, 0) / movieRatings.length
-        : 0;
-
-      patternAnalysisText = '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
-      patternAnalysisText += '📈 STATISTICAL PATTERN ANALYSIS (DATA-DRIVEN INSIGHTS)\n';
-      patternAnalysisText += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
-
-      if (genreAverages.length > 0) {
-        const topGenres = genreAverages.filter(g => g.avg >= 4.0);
-        const poorGenres = genreAverages.filter(g => g.avg <= 2.5);
-
-        if (topGenres.length > 0) {
-          patternAnalysisText += '🎯 HIGHEST-RATED GENRES (Focus recommendations here):\n';
-          topGenres.forEach(g => {
-            patternAnalysisText += `   • ${g.genre}: ${g.avg.toFixed(1)} avg rating (from ${g.count} ${g.count === 1 ? 'rating' : 'ratings'})\n`;
-          });
-          patternAnalysisText += '\n';
-        }
-
-        if (poorGenres.length > 0) {
-          patternAnalysisText += '⚠️ LOWEST-RATED GENRES (Avoid or be very selective):\n';
-          poorGenres.forEach(g => {
-            patternAnalysisText += `   • ${g.genre}: ${g.avg.toFixed(1)} avg rating (from ${g.count} ${g.count === 1 ? 'rating' : 'ratings'})\n`;
-          });
-          patternAnalysisText += '\n';
-        }
-      }
-
-      if (seriesRatings.length > 0 || movieRatings.length > 0) {
-        patternAnalysisText += '🎬 CONTENT TYPE PREFERENCE:\n';
-        if (seriesRatings.length > 0) {
-          patternAnalysisText += `   • TV Series: ${seriesAvg.toFixed(1)} avg rating (${seriesRatings.length} ratings)\n`;
-        }
-        if (movieRatings.length > 0) {
-          patternAnalysisText += `   • Movies: ${movieAvg.toFixed(1)} avg rating (${movieRatings.length} ratings)\n`;
-        }
-
-        const preference = Math.abs(seriesAvg - movieAvg) > 0.5
-          ? (seriesAvg > movieAvg ? 'STRONGLY prefers TV Series' : 'STRONGLY prefers Movies')
-          : 'No strong preference between Series and Movies';
-        patternAnalysisText += `   📊 INSIGHT: User ${preference}\n\n`;
-      }
-
-      // ============= IMPROVEMENT #4: Watched Status as Strong Signal =============
-      const watchedAndLoved = ratingHistory.filter(r => r.watched === true && r.user_rating >= 4);
-      const likedButNotWatched = ratingHistory.filter(r => (r.watched === false || r.watched === null) && r.user_rating >= 4);
-      const watchedAndDisliked = ratingHistory.filter(r => r.watched === true && r.user_rating <= 2);
-
-      watchedSignalsText = '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
-      watchedSignalsText += '🎯 WATCHED STATUS SIGNALS (CONFIDENCE LEVELS)\n';
-      watchedSignalsText += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
-
-      if (watchedAndLoved.length > 0) {
-        watchedSignalsText += '🏆 WATCHED & LOVED (HIGHEST CONFIDENCE - STRONGEST SIGNAL):\n';
-        watchedSignalsText += '   These are CONFIRMED great matches - user actually watched AND loved them.\n';
-        watchedSignalsText += '   ⚡ CRITICAL: Prioritize finding content VERY similar to these:\n';
-        watchedAndLoved.forEach(r => {
-          watchedSignalsText += `   • "${r.title}" (${r.type}, ${r.genre}) - ⭐${r.user_rating}/5 ✓ Watched\n`;
-        });
-        watchedSignalsText += '\n';
-      }
-
-      if (likedButNotWatched.length > 0) {
-        watchedSignalsText += '💭 RATED HIGH BUT NOT WATCHED (LOWER CONFIDENCE):\n';
-        watchedSignalsText += '   User liked the idea but hasn\'t actually watched these yet.\n';
-        watchedSignalsText += '   ⚠️ Consider these preferences but don\'t over-weight them:\n';
-        likedButNotWatched.forEach(r => {
-          watchedSignalsText += `   • "${r.title}" (${r.type}, ${r.genre}) - ⭐${r.user_rating}/5 ✗ Not watched\n`;
-        });
-        watchedSignalsText += '\n';
-      }
-
-      if (watchedAndDisliked.length > 0) {
-        watchedSignalsText += '🚫 WATCHED BUT DISLIKED (STRONG NEGATIVE SIGNAL):\n';
-        watchedSignalsText += '   User gave these a chance by watching but didn\'t enjoy them.\n';
-        watchedSignalsText += '   ❌ ACTIVELY AVOID content with similar patterns:\n';
-        watchedAndDisliked.forEach(r => {
-          watchedSignalsText += `   • "${r.title}" (${r.type}, ${r.genre}) - ⭐${r.user_rating}/5 ✓ Watched but disliked\n`;
-        });
-        watchedSignalsText += '\n';
-      }
-
-      watchedSignalsText += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
-      watchedSignalsText += 'RECOMMENDATION STRATEGY:\n';
-      watchedSignalsText += '1. Find shows VERY similar to "Watched & Loved" (highest priority)\n';
-      watchedSignalsText += '2. Consider patterns from "Rated High but Not Watched" (medium priority)\n';
-      watchedSignalsText += '3. Strongly avoid patterns from "Watched but Disliked" (critical)\n';
-      watchedSignalsText += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
-    }
-
-    let excludeText = '';
-    if (previouslyRecommended.length > 0) {
-      excludeText = `\n\n🚫🚫🚫 PREVIOUSLY RECOMMENDED - ABSOLUTE PROHIBITION - DO NOT REPEAT ANY OF THESE TITLES 🚫🚫🚫:
-${previouslyRecommended.join(', ')}
-
-❌ CRITICAL RULE ❌: You are ABSOLUTELY FORBIDDEN from recommending ANY of these titles again, even if they perfectly match the user's preferences.
-- These titles have ALREADY been shown to this user in previous sessions
-- Recommending them again creates a terrible user experience
-- You MUST find completely fresh, NEW recommendations that are NOT in this list
-- If you recommend ANY title from this list, it is a CRITICAL ERROR
-- There are thousands of other shows/movies available - choose from those instead`;
-    }
-
-    // ============= STEP 4: HYBRID MODEL PROMPT =============
-    // Inject embedding-based candidates into the prompt
-    let embeddingCandidatesText = '';
-    if (embeddingBasedCandidates.length > 0) {
-      embeddingCandidatesText = `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🤖 HYBRID MODEL: PRE-FILTERED CANDIDATES (LAYER 1: EMBEDDINGS)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-These titles were mathematically identified as MOST SIMILAR to shows the user loved (using AI embeddings):
-${embeddingBasedCandidates.join(', ')}
-
-💡 HOW THIS WORKS (Hybrid AI + Embeddings System):
-   STEP 1 (Embeddings Layer): We analyzed the semantic meaning of shows user rated 4-5 stars
-   STEP 2 (Vector Search): Found these ${embeddingBasedCandidates.length} titles with highest cosine similarity (70%+ match)
-   STEP 3 (AI Layer - YOU): Now apply quality filters:
-      ✓ Regional availability for ${region}
-      ✓ Genre diversity requirements
-      ✓ Maturity level preferences
-      ✓ Content type preferences
-      ✓ Mood and context matching
-
-⚡ YOUR ROLE: These are mathematically similar candidates. Your job is to:
-   1. Verify each title's availability in ${region}
-   2. Select the 6 best matches that also fit preferences
-   3. Ensure genre diversity (max 2 per genre)
-   4. Add human-readable explanations for why each matches
-
-⚠️  IMPORTANT: These candidates are SUGGESTIONS, not requirements. If:
-   - A candidate isn't available in ${region} → EXCLUDE IT
-   - A candidate doesn't fit preferences → EXCLUDE IT
-   - You need more variety → ADD titles from your own knowledge
-   
-   The embedding layer narrows down thousands of options. You refine for quality.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    }
-
-    const userPrompt = `User Preferences:
-- How their day is going: ${preferences.mood}
-- Content Type: ${preferences.contentType || 'both movies and series'}
-- Genres: ${preferences.genres.join(', ')}
-- Watch Time: ${preferences.watchTime}
-- Watch Style: ${preferences.watchStyle}
-- Language/Subtitles: ${preferences.language}
-- Watching: ${preferences.company}
-- Interested in underrated content: ${preferences.underrated}
-- Age Rating Preference: ${preferences.ageRating || 'No preference'}
-- Netflix Region: ${region} 🚨 CRITICAL: Verify ALL recommendations are available in this specific region
-
-Recently Watched Shows:
-${watchedShows.length > 0 ? watchedShows.join(', ') : 'None provided'}${ratingHistoryText}${patternAnalysisText}${watchedSignalsText}${embeddingCandidatesText}${excludeText}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 YOUR TASK: Provide 6 VERIFIED-AVAILABLE recommendations
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Requirements:
-1. Match their current mood and preferences
-2. Consider language preferences and viewing context
-3. Include underrated content if requested
-4. ${embeddingBasedCandidates.length > 0 ? 'START by evaluating the embedding-based candidates above (pre-filtered for similarity)' : 'Use your knowledge to find matches'}
-5. 🚨 MOST IMPORTANT: Every recommendation MUST be verified available in ${region}
-
-FOR EACH RECOMMENDATION YOU CONSIDER:
-- Ask: "Is this definitely in ${region}'s Netflix catalog?"
-- Ask: "Can I explain WHY it's available there?"
-- If answer is not "Yes, because..." → Choose a different title
-- Include your confidence level and reasoning in availabilityConfidence field${ratingHistory.length > 0 ? '\n\n🎯 CRITICAL INSTRUCTIONS FOR USING ABOVE DATA:\n- Use the DETAILED PREFERENCE ANALYSIS to understand WHY they liked/disliked content\n- Use the STATISTICAL PATTERN ANALYSIS to make data-driven genre and content type choices\n- Use the WATCHED STATUS SIGNALS to prioritize confirmed preferences over uncertain ones\n- Recommendations should reflect these patterns - prioritize "Watched & Loved" patterns most heavily' : ''}
-
-🔒 FINAL CHECK BEFORE SUBMITTING:
-□ All 6 titles verified available in ${region}
-□ Each has availabilityConfidence explanation
-□ No titles from the excluded list
-□ Matches their preferences AND availability constraints`;
-
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://smart-netflix-recommendations.app",
+        "X-Title": "Smart Netflix Recommendations",
       },
       body: JSON.stringify({
-        model: 'google/gemini-3.0-flash',
+        model: OPENROUTER_MODEL,
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
         ],
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI gateway error:', response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+      console.error("OpenRouter API error:", response.status, errorText);
+      throw new Error(`OpenRouter API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const content = data.choices[0].message.content;
-    console.log('Recommendation response generated', {
+    const parsed = JSON.parse(data.choices[0].message.content);
+    const rawRecs: Array<Record<string, unknown>> = parsed.recommendations ?? [];
+
+    // ── 4. Enrich with authoritative TMDB data (type/genre/rating) ────
+    // The LLM writes the prose; the facts come from the catalog. If the LLM
+    // ever drifts off-list, we drop the pick rather than surface a fabrication.
+    const recommendations = rawRecs
+      .map((rec) => {
+        const match = shortlist.find((c) => normalizeTitle(c.title) === normalizeTitle(String(rec.title ?? "")));
+        if (!match) {
+          console.warn("Dropping off-catalog recommendation:", rec.title);
+          return null;
+        }
+        return {
+          title: match.title,
+          type: match.type,
+          genre: match.genres[0] ?? "Drama",
+          description: String(rec.description ?? match.overview),
+          matchReason: String(rec.matchReason ?? ""),
+          rating: match.rating.toFixed(1),
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+
+    console.log("Recommendations generated", {
       timestamp: new Date().toISOString(),
-      hasContent: !!content
+      shortlistSize: shortlist.length,
+      returned: recommendations.length,
     });
 
-    const recommendations = JSON.parse(content);
-
-    return new Response(JSON.stringify(recommendations), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    return new Response(JSON.stringify({ recommendations }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error('Error in get-recommendations function:', error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
+    console.error("Error in get-recommendations function:", error);
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
