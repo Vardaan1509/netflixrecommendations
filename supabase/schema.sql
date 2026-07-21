@@ -168,11 +168,18 @@ CREATE TRIGGER update_recommendations_updated_at
 
 CREATE INDEX IF NOT EXISTS idx_recommendations_user_id ON public.recommendations(user_id);
 CREATE INDEX IF NOT EXISTS idx_recommendations_created_at ON public.recommendations(created_at DESC);
+-- Serves the per-request "rated history" query (user + rated rows, by recency).
+CREATE INDEX IF NOT EXISTS idx_recommendations_user_rated
+  ON public.recommendations (user_id, created_at DESC)
+  WHERE user_rating IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
 -- Table: show_embeddings
--- OpenAI embeddings (text-embedding-3-small, 1536 dims) for shows the user
--- rated 4-5 stars. Enables vector similarity search for the hybrid recommender.
+-- Embeddings via OpenRouter (openai/text-embedding-3-small, 1536 dims) for
+-- shows the user rated 4-5 stars. Generated on rating; retained for a future
+-- embedding-based re-ranking of catalog candidates. NOTE: the current
+-- recommendation pipeline (TMDB retrieval + LLM finalize) does not read these
+-- yet — they are staged for that enhancement.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.show_embeddings (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -224,8 +231,8 @@ CREATE TRIGGER update_show_embeddings_updated_at
 -- ---------------------------------------------------------------------------
 -- Function: match_show_embeddings
 -- Returns the most cosine-similar shows to a query embedding.
--- Called via supabaseClient.rpc('match_show_embeddings', {...}) from the
--- get-recommendations edge function.
+-- Retained for a future embedding-based re-ranking step; not currently called
+-- by the recommendation pipeline.
 -- ---------------------------------------------------------------------------
 -- Scoped to auth.uid() so a request only matches the caller's own embeddings
 -- (never other users' private ratings). Anonymous calls match no rows.
@@ -257,8 +264,12 @@ $$;
 -- ============================================================================
 -- Done. Next steps (outside this file):
 --   1. Set Edge Function secrets:
---        supabase secrets set OPENAI_API_KEY=... BACKBOARD_API_KEY=... \
---          BACKBOARD_ASSISTANT_ID=...
+--        supabase secrets set \
+--          OPENROUTER_API_KEY=...  OPENROUTER_MODEL=google/gemini-3-flash-preview \
+--          TMDB_ACCESS_TOKEN=... \
+--          BACKBOARD_API_KEY=...   BACKBOARD_ASSISTANT_ID=... \
+--          UPSTASH_REDIS_REST_URL=...  UPSTASH_REDIS_REST_TOKEN=... \
+--          ALLOWED_ORIGINS=https://your-production-domain
 --   2. Deploy the functions:
 --        supabase functions deploy get-next-question
 --        supabase functions deploy get-recommendations
