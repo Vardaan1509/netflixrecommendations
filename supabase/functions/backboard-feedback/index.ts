@@ -1,13 +1,19 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { corsHeaders as buildCorsHeaders } from "../_shared/cors.ts";
 
 const BACKBOARD_BASE_URL = 'https://app.backboard.io/api';
+
+// Request body validation for feedback events.
+const feedbackRequestSchema = z.object({
+  feedbackType: z.enum(['rating', 'watched', 'not_interested', 'loved']).optional(),
+  title: z.string().max(300).optional(),
+  rating: z.number().int().min(1).max(5).optional(),
+  reason: z.string().max(500).optional(),
+  customMessage: z.string().max(1000).optional(),
+});
 
 /**
  * Backboard Feedback Edge Function
@@ -22,6 +28,7 @@ const BACKBOARD_BASE_URL = 'https://app.backboard.io/api';
  * - "I prefer content under 45 minutes on weekdays"
  */
 serve(async (req) => {
+    const corsHeaders = buildCorsHeaders(req);
     if (req.method === 'OPTIONS') {
         return new Response(null, { headers: corsHeaders });
     }
@@ -60,7 +67,15 @@ serve(async (req) => {
             );
         }
 
-        const { feedbackType, title, rating, reason, customMessage } = await req.json();
+        const rawBody = await req.json().catch(() => null);
+        const validation = feedbackRequestSchema.safeParse(rawBody);
+        if (!validation.success) {
+            return new Response(
+                JSON.stringify({ error: 'Invalid input data', details: validation.error.format() }),
+                { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+        }
+        const { feedbackType, title, rating, reason, customMessage } = validation.data;
 
         // Get user's Backboard thread
         const { data: profile } = await supabaseClient
