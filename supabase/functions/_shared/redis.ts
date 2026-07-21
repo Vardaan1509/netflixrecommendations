@@ -99,3 +99,32 @@ export function callerId(req: Request): string {
   const ip = fwd ? fwd.split(",")[0].trim() : "unknown";
   return `ip:${ip}`;
 }
+
+/**
+ * Generic cache read. Returns the stored value (auto-deserialized from JSON by
+ * the Upstash client) or null on miss / no Redis / any error. Fails safe.
+ */
+export async function cacheGet<T>(key: string): Promise<T | null> {
+  const redis = getRedis();
+  if (!redis) return null;
+  try {
+    return (await redis.get<T>(key)) ?? null;
+  } catch (err) {
+    console.error("cacheGet failed (treating as miss):", err);
+    return null;
+  }
+}
+
+/**
+ * Generic cache write with a TTL (seconds). The Upstash client serializes
+ * objects to JSON automatically. Fails safe — a cache write error never throws.
+ */
+export async function cacheSet(key: string, value: unknown, ttlSeconds: number): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  try {
+    await redis.set(key, value, { ex: ttlSeconds });
+  } catch (err) {
+    console.error("cacheSet failed (ignoring):", err);
+  }
+}
